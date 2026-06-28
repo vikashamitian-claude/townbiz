@@ -1,0 +1,66 @@
+{
+  "paths": {
+    "tasks": "TASKS.md",
+    "agent_reports_dir": ".agent_reports",
+    "codex_task": ".agent_reports/codex_task.md",
+    "codex_latest": ".agent_reports/codex_latest.md",
+    "claude_task": ".agent_reports/claude_task.md",
+    "claude_latest": ".agent_reports/claude_latest.md",
+    "sprint_status": ".agent_reports/SPRINT_STATUS.md",
+    "orchestrator_log": ".agent_logs/orchestrator.log",
+    "autodev_log": ".agent_logs/autodev.log",
+    "human_decisions": "HUMAN_DECISIONS.md",
+    "codex_prompt": "orchestrator/prompts/codex_pm_prompt.md",
+    "claude_prompt": "orchestrator/prompts/claude_review_prompt.md"
+  },
+  "statuses": {
+    "continue": ["PASS", "PASS WITH MINOR FIXES"],
+    "rejected": ["REJECTED"],
+    "stop": ["BLOCKER", "HUMAN APPROVAL REQUIRED"]
+  },
+  "human_gate_markers": [
+    "Human approval required",
+    "Human Approval Gate",
+    "gameplay",
+    "economy",
+    "architecture",
+    "save system",
+    "release",
+    "new gameplay"
+  ],
+  "poll_seconds": 5,
+  "timeout_seconds": 3600,
+  "command_timeout_seconds": 3600,
+  "manual_commands": {
+    "codex": "Open .agent_reports/codex_task.md and run the task with Codex.",
+    "claude": "Open .agent_reports/claude_task.md and run the review with Claude Code.",
+    "commit": "git add <reviewed files> && git commit -m \"[Sprint X] <task summary>\"",
+    "push": "git push"
+  },
+  "git_pull_enabled": false,
+  "git_pull_command": ["git", "pull"],
+  "codex_command": null,
+  "claude_command": null,
+  "git_commit_enabled": false,
+  "git_push_enabled": false,
+  "git_push_command": ["git", "push"],
+  "commit_message_prefix": "[AutoDev]",
+  "protected_change_paths": ["scripts/", "scenes/"],
+  "forbidden_commit_patterns": [
+    ".godot/",
+    "build/",
+    "exports/",
+    "*.apk",
+    "*.aab",
+    "*.pck",
+    "*.keystore",
+    "*.p12",
+    "*.key",
+    "*.pem",
+    ".env",
+    ".env.*"
+  ],
+  "excluded_commit_patterns": [
+    ".agent_logs/"
+  ]
+}

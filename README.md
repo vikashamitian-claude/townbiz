@@ -1,28 +1,22 @@
-# BizTown: Build Your Empire - Prototype
+# BizTown: Build Your Empire
 
-A Stage 1 prototype of the BizTown business tycoon game, built in **Godot 4.x / GDScript** with an
-**Android-first** target.
+A business tycoon game built in **Godot 4.x / GDScript** with an **Android-first** target.
 
-The current active prototype is Chapter 1, "Save My First Shop": set a soap price, serve customers,
-manage stock, hire Ravi, survive month-end, and decide whether to expand.
+The current active prototype is Chapter 1, "Save My First Shop": set a soap price, serve
+customers, manage stock, hire Ravi, survive month-end, and decide whether to expand.
 
-## What's in the prototype
+## Stack
 
-- One playable portrait screen using a 720x1280 base viewport.
-- Active scene: `scenes/Game.tscn`.
-- Active script: `scripts/Game.gd`.
-- Autoloaded simulation state and rules in `scripts/sim/`.
-- Autoloaded mission flow and Chapter 1 mission data in `scripts/mission/`.
-- Live HUD for day, cash, reputation, stock, price, mission state, and shop diary.
-- Simple built-in placeholder visuals for the shop, customers, Ravi, and completion overlay.
+- Engine: Godot 4.x (GL Compatibility renderer)
+- Language: GDScript
+- Layout: Portrait 720x1280
+- Target: Android first
 
-## How to run it
+## How to run
 
 1. Install **Godot 4.x** (standard build, not Mono/C#) from <https://godotengine.org/download>.
-2. Open Godot, choose **Import**, and select this `biztown` folder, the one with `project.godot`.
+2. Open Godot, choose **Import**, and select this `biztown` folder (the one with `project.godot`).
 3. Press **F5**. Godot runs `scenes/Game.tscn`.
-
-The project is configured for Godot 4.x, GDScript, portrait layout, and the GL Compatibility renderer.
 
 ## Try it on Android
 
@@ -32,23 +26,53 @@ The project is configured for Godot 4.x, GDScript, portrait layout, and the GL C
 3. Plug in a phone with USB debugging on and click **Run on device**, or **Export Project**
    to build an APK.
 
-Note: the current repo hygiene pass does not add an Android export preset.
+Note: the repo does not yet include an Android export preset.
 
-## Files
+## Active files
 
 | File | Purpose |
 |------|---------|
-| `project.godot` | Engine config: portrait, mobile (GL Compatibility) renderer |
-| `scenes/Game.tscn` | Active game scene |
+| `project.godot` | Engine config: portrait, mobile renderer, autoloads |
+| `scenes/Game.tscn` | Active game scene (main scene) |
 | `scripts/Game.gd` | Active gameplay presentation and UI script |
-| `scripts/sim/` | Simulation state, rules, and tunable numbers |
-| `scripts/mission/` | Mission manager and Chapter 1 mission data |
+| `scripts/sim/GameState.gd` | Autoload: simulation state (cash, reputation, day, traits) |
+| `scripts/sim/Sim.gd` | Autoload: simulation rules and day processing |
+| `scripts/sim/SimConfig.gd` | Tuning knobs for Chapter 1 |
+| `scripts/mission/MissionManager.gd` | Autoload: mission flow and beat progression |
+| `scripts/mission/MissionData.gd` | Chapter 1 mission data (beats, options, outcomes) |
 | `icon.svg` | App icon |
 
-## Legacy files
+## Legacy and test files
 
-`scenes/Main.tscn` and `scripts/Main.gd` are legacy Stage 1 prototype files. They are kept for now
-but are not the active game entry point.
+These files are kept in the repo for reference but are **not** part of the active game.
+None are loaded by `project.godot` or referenced by the active scene.
+
+| File | Status | Notes |
+|------|--------|-------|
+| `scenes/Main.tscn` | Legacy | Old Stage 1 prototype scene |
+| `scripts/Main.gd` | Legacy | Old Stage 1 prototype script |
+| `scenes/MissionUI.tscn` | Unused | Standalone mission UI scene, not referenced by Game |
+| `scripts/MissionUI.gd` | Unused | Script for MissionUI scene |
+| `scenes/MissionTest.tscn` | Test | Standalone test scene for mission system |
+| `scripts/MissionTest.gd` | Test | Script for MissionTest scene |
+| `scenes/SimTest.tscn` | Test | Standalone test scene for simulation system |
+| `scripts/SimTest.gd` | Test | Script for SimTest scene |
+
+## Governance documents
+
+| Document | Purpose |
+|----------|---------|
+| `FOUNDATION.md` | Frozen design charter: pillars, design laws, 80% rule |
+| `PROTOTYPE_SPEC.md` | Frozen Chapter 1 spec: 5 beats, economy model, guardrails |
+| `KNOWLEDGE_MAP.md` | Entrepreneur Framework: business skills and mindset curriculum |
+| `MISSION_TREE.md` | Mission structure across all chapters |
+| `WHY_BIZTOWN.md` | Product vision and motivation |
+| `ARCHITECTURE.md` | Core systems and design principles |
+| `ROADMAP.md` | 5-phase development plan |
+| `AGENTS.md` | AI agent roles and human approval gates |
+| `CODING_RULES.md` | Stack rules, workflow, and report format |
+| `DEVELOPMENT_AUTOMATION.md` | Autonomous development workflow |
+| `TASKS.md` | Active sprint tasks and backlog |
 
 ## Tuning knobs
 

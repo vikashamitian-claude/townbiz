@@ -5,8 +5,12 @@
 build/
 *.apk
 *.aab
+*.obb
 *.pck
 *.zip
+
+# Android build output
+android/
 
 # OS/editor noise
 .DS_Store
@@ -14,3 +18,5 @@ Thumbs.db
 desktop.ini
 *.tmp
 *.log
+*.swp
+*~
