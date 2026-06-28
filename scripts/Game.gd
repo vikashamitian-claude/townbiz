@@ -1,0 +1,647 @@
+extends Control
+## BizTown — Sprint 4: Gameplay Feel Pass (presentation only).
+##
+## Goal: a brand-new player understands Chapter 1 in two minutes without explanation.
+## Everything here is presentation built from Godot Controls + code styles — NO art assets,
+## and NO changes to the Simulation Engine, Mission Engine, config, or mission data.
+
+const DAY_DURATION: float = 2.7
+const BUY_QUANTITY: int = 60
+const MAX_CUSTOMER_DOTS: int = 10
+const LOG_MAX: int = 6
+const LOW_STOCK: int = 18
+
+# --- Palette ---
+const BG := Color(0.09, 0.11, 0.16)
+const PANEL := Color(0.16, 0.19, 0.27)
+const PANEL_HI := Color(0.22, 0.27, 0.38)
+const TEXT := Color(0.90, 0.93, 0.98)
+const MUTED := Color(0.62, 0.68, 0.80)
+const CASH_COL := Color(1.0, 0.82, 0.34)
+const REP_COL := Color(0.48, 0.72, 1.0)
+const STOCK_COL := Color(1.0, 0.62, 0.34)
+const DAY_COL := Color(0.82, 0.88, 1.0)
+const GOOD := Color(0.40, 0.86, 0.52)
+const BAD := Color(0.92, 0.42, 0.42)
+const WARN := Color(0.96, 0.80, 0.36)
+const SKIN := Color(0.88, 0.74, 0.58)
+const ACCENT := Color(0.45, 0.85, 0.6)
+
+var day_timer: float = 0.0
+var running: bool = false
+var chapter_done: bool = false
+var counter_pos: Vector2 = Vector2(360, 225)
+var world_home: Vector2 = Vector2.ZERO
+var log_lines: Array[String] = []
+
+# Reflection tracking (world-layer only — engine untouched)
+var total_revenue: float = 0.0
+var stock_ordered: int = 0
+var price_changes: int = 0
+var ravi_hire_day: int = -1
+var reflection_nodes: Array[Node] = []
+var submit_button: Button
+var q1_edit: LineEdit
+var q2_edit: LineEdit
+var q3_edit: LineEdit
+
+# HUD value labels (built in code)
+var day_value: Label
+var cash_value: Label
+var rep_value: Label
+var stock_value: Label
+
+@onready var hud: HBoxContainer = $HUD
+@onready var mission_card: PanelContainer = $MissionCard
+@onready var mission_title: Label = $MissionCard/MC/MVBox/MissionTitle
+@onready var mission_objective: Label = $MissionCard/MC/MVBox/MissionObjective
+@onready var mission_status: Label = $MissionCard/MC/MVBox/MissionStatus
+@onready var world_area: Control = $WorldArea
+@onready var shop: Panel = $WorldArea/Shop
+@onready var counter: Panel = $WorldArea/Counter
+@onready var ravi: Control = $WorldArea/Ravi
+@onready var diary_card: PanelContainer = $DiaryCard
+@onready var diary_title: Label = $DiaryCard/DMargin/DVBox/DiaryTitle
+@onready var diary_log: Label = $DiaryCard/DMargin/DVBox/DiaryLog
+@onready var price_card: PanelContainer = $Controls/PriceCard
+@onready var price_label: Label = $Controls/PriceCard/PMargin/PVBox/PriceLabel
+@onready var price_slider: HSlider = $Controls/PriceCard/PMargin/PVBox/PriceSlider
+@onready var buy_button: Button = $Controls/ActionRow/BuyButton
+@onready var ravi_button: Button = $Controls/ActionRow/RaviButton
+@onready var expand_button: Button = $Controls/ActionRow/ExpandButton
+@onready var flow_button: Button = $Controls/FlowRow/FlowButton
+@onready var reset_button: Button = $Controls/FlowRow/ResetButton
+@onready var overlay: Control = $Overlay
+@onready var reflection_box: VBoxContainer = $Overlay/Center/CompletePanel/CMargin/CVBox
+
+
+func _ready() -> void:
+	_style_everything()
+	_build_hud()
+
+	MissionManager.mission_started.connect(_on_mission_started)
+	MissionManager.mission_completed.connect(_on_mission_completed)
+	MissionManager.chapter_completed.connect(_on_chapter_completed)
+
+	price_slider.min_value = SimConfig.PRICE_MIN
+	price_slider.max_value = SimConfig.PRICE_MAX
+	price_slider.step = 1.0
+	price_slider.value = SimConfig.DEFAULT_PRICE
+	price_slider.value_changed.connect(_on_price_changed)
+	price_slider.drag_ended.connect(_on_price_drag_ended)
+
+	buy_button.pressed.connect(_on_buy)
+	ravi_button.pressed.connect(_on_hire_ravi)
+	expand_button.pressed.connect(_on_expand)
+	flow_button.pressed.connect(_on_flow_pressed)
+	reset_button.pressed.connect(_on_reset_pressed)
+
+	ravi.visible = false
+	overlay.visible = false
+	overlay.z_index = 100   # always above floating feedback (z 50)
+	_clear_log()
+	world_home = world_area.position
+
+	MissionManager.start_chapter()
+	GameState.current_price = price_slider.value
+	_on_price_changed(price_slider.value)
+	_refresh_hud()
+	_update_buttons()
+
+
+func _process(delta: float) -> void:
+	if not running or chapter_done:
+		return
+	day_timer += delta
+	if day_timer >= DAY_DURATION:
+		day_timer = 0.0
+		_advance_day()
+
+
+# ===========================================================================
+#  STYLING (Task 1, 6 — looks like a studio prototype, no art)
+# ===========================================================================
+
+func _style_everything() -> void:
+	$Bg.color = BG
+	for p in [mission_card, diary_card, price_card]:
+		p.add_theme_stylebox_override("panel", _sb(PANEL, 14, 1, PANEL_HI))
+	$Overlay/Center/CompletePanel.add_theme_stylebox_override("panel", _sb(PANEL, 18, 2, ACCENT))
+	shop.add_theme_stylebox_override("panel", _sb(Color(0.78, 0.55, 0.38), 10, 3, Color(0.5, 0.34, 0.22)))
+	counter.add_theme_stylebox_override("panel", _sb(Color(0.42, 0.32, 0.24), 6))
+	$WorldArea/ShopSign.add_theme_color_override("font_color", Color(1, 0.95, 0.8))
+	$WorldArea/Ravi/RaviLabel.add_theme_color_override("font_color", REP_COL)
+
+	mission_title.add_theme_color_override("font_color", TEXT)
+	mission_objective.add_theme_color_override("font_color", ACCENT)
+	mission_status.add_theme_color_override("font_color", MUTED)
+	diary_title.add_theme_color_override("font_color", MUTED)
+	diary_log.add_theme_color_override("font_color", TEXT)
+	price_label.add_theme_color_override("font_color", TEXT)
+
+	# Ravi (blue helper figure)
+	$WorldArea/Ravi/RaviBody.add_theme_stylebox_override("panel", _sb(REP_COL.darkened(0.1), 8))
+	$WorldArea/Ravi/RaviHead.add_theme_stylebox_override("panel", _sb(SKIN, 10))
+
+	# Buttons (subtle hover/pressed)
+	for b in [buy_button, ravi_button, expand_button, reset_button]:
+		_style_button(b, PANEL_HI)
+	_style_button(flow_button, ACCENT.darkened(0.1))
+
+
+func _sb(bg: Color, radius: int = 10, border: int = 0, border_col: Color = Color.TRANSPARENT) -> StyleBoxFlat:
+	var s := StyleBoxFlat.new()
+	s.bg_color = bg
+	s.set_corner_radius_all(radius)
+	if border > 0:
+		s.set_border_width_all(border)
+		s.border_color = border_col
+	s.content_margin_left = 12.0
+	s.content_margin_right = 12.0
+	s.content_margin_top = 8.0
+	s.content_margin_bottom = 8.0
+	return s
+
+
+func _style_button(b: Button, base: Color) -> void:
+	b.add_theme_stylebox_override("normal", _sb(base, 10))
+	b.add_theme_stylebox_override("hover", _sb(base.lightened(0.12), 10))
+	b.add_theme_stylebox_override("pressed", _sb(base.darkened(0.18), 10))
+	b.add_theme_stylebox_override("disabled", _sb(PANEL.darkened(0.1), 10))
+	b.add_theme_color_override("font_color", TEXT)
+	b.add_theme_color_override("font_disabled_color", MUTED.darkened(0.2))
+
+
+func _build_hud() -> void:
+	day_value = _add_chip("DAY", "0", DAY_COL)
+	cash_value = _add_chip("CASH", "Rs 0", CASH_COL)
+	rep_value = _add_chip("REPUTATION", "0", REP_COL)
+	stock_value = _add_chip("STOCK", "0", STOCK_COL)
+
+
+func _add_chip(caption: String, value: String, accent: Color) -> Label:
+	var p := PanelContainer.new()
+	p.add_theme_stylebox_override("panel", _sb(PANEL, 12, 2, accent.darkened(0.25)))
+	p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 2)
+	p.add_child(v)
+	var cap := Label.new()
+	cap.text = caption
+	cap.add_theme_font_size_override("font_size", 13)
+	cap.add_theme_color_override("font_color", MUTED)
+	cap.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var val := Label.new()
+	val.text = value
+	val.add_theme_font_size_override("font_size", 26)
+	val.add_theme_color_override("font_color", accent)
+	val.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(cap)
+	v.add_child(val)
+	hud.add_child(p)
+	return val
+
+
+# ===========================================================================
+#  TIME / WORLD
+# ===========================================================================
+
+func _advance_day() -> void:
+	var rep_before: float = GameState.reputation
+	var r: Dictionary = Sim.run_day()
+	var drep: int = int(round(GameState.reputation - rep_before))
+	total_revenue += r.revenue
+
+	_diary_day(r)
+
+	if GameState.day % SimConfig.MONTH_LENGTH_DAYS == 0:
+		var rent: float = Sim.apply_monthly_costs()
+		_diary("Month-end. Paid Rs %d in rent." % int(rent))
+		_float("Rent -Rs %d" % int(rent), BAD, Vector2(360, 330))
+		_shake(7.0)
+
+	if drep > 0:
+		_float("Reputation +%d" % drep, REP_COL, rep_value.global_position + Vector2(0, 30))
+	elif drep < 0:
+		_float("Reputation %d" % drep, BAD, rep_value.global_position + Vector2(0, 30))
+
+	if GameState.inventory <= LOW_STOCK and not chapter_done:
+		_float("Low stock!", WARN, stock_value.global_position + Vector2(0, 30))
+
+	_spawn_customers(r)
+	_refresh_hud()
+	_update_buttons()
+
+
+func _spawn_customers(result: Dictionary) -> void:
+	var demand: int = result.demand
+	if demand <= 0:
+		return
+	var total: int = mini(demand, MAX_CUSTOMER_DOTS)
+	var served_dots: int = clampi(int(round(float(result.served) / float(demand) * total)), 0, total)
+	for i in range(total):
+		_spawn_customer(i < served_dots, i)
+
+
+## A little grey-box person: green/blue = served, becomes red if turned away.
+func _spawn_customer(served: bool, idx: int) -> void:
+	var person := Control.new()
+	person.size = Vector2(26, 44)
+	var body := Panel.new()
+	body.add_theme_stylebox_override("panel", _sb(Color(0.55, 0.62, 0.78), 8))
+	body.position = Vector2(4, 16)
+	body.size = Vector2(18, 26)
+	var head := Panel.new()
+	head.add_theme_stylebox_override("panel", _sb(SKIN, 10))
+	head.position = Vector2(5, 0)
+	head.size = Vector2(16, 16)
+	person.add_child(body)
+	person.add_child(head)
+
+	var start := Vector2(140.0 + idx * 44.0, 430.0)
+	person.position = start
+	world_area.add_child(person)
+
+	var t := create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	if served:
+		t.tween_property(person, "position", counter_pos + Vector2(randf_range(-30, 30), 0), DAY_DURATION * 0.45)
+		t.tween_callback(_customer_buy.bind(person))
+		t.tween_property(person, "position", Vector2(person.position.x, -70), DAY_DURATION * 0.5)
+	else:
+		var queue := Vector2(360 + randf_range(-70, 70), 300)
+		t.tween_property(person, "position", queue, DAY_DURATION * 0.4)
+		t.tween_callback(_customer_leave.bind(person))
+		var exit_x := -60.0 if start.x < 360.0 else 780.0
+		t.tween_property(person, "position", Vector2(exit_x, 470), DAY_DURATION * 0.5)
+	t.tween_callback(person.queue_free)
+
+
+func _customer_buy(person: Control) -> void:
+	_float("+Rs %d" % int(GameState.current_price), GOOD, person.global_position + Vector2(-6, -12))
+
+
+func _customer_leave(person: Control) -> void:
+	(person.get_child(0) as Panel).add_theme_stylebox_override("panel", _sb(BAD, 8))
+	(person.get_child(1) as Panel).add_theme_stylebox_override("panel", _sb(BAD.lightened(0.2), 10))
+	_float("left!", BAD, person.global_position + Vector2(-4, -12))
+
+
+# ===========================================================================
+#  FLOATING FEEDBACK (Task 3) + SHAKE / CONFETTI (Task 5, 8)
+# ===========================================================================
+
+func _float(text: String, color: Color, pos: Vector2) -> void:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_color_override("font_color", color)
+	l.add_theme_font_size_override("font_size", 22)
+	l.position = pos
+	l.z_index = 50
+	add_child(l)
+	var t := create_tween()
+	t.set_parallel(true)
+	t.tween_property(l, "position:y", pos.y - 48, 0.9).set_ease(Tween.EASE_OUT)
+	t.tween_property(l, "modulate:a", 0.0, 0.9)
+	t.set_parallel(false)
+	t.tween_callback(l.queue_free)
+
+
+func _shake(amount: float) -> void:
+	var t := create_tween()
+	for i in range(6):
+		var off := Vector2(randf_range(-amount, amount), randf_range(-amount, amount))
+		t.tween_property(world_area, "position", world_home + off, 0.04)
+	t.tween_property(world_area, "position", world_home, 0.05)
+
+
+func _confetti() -> void:
+	var cols := [Color(1, 0.45, 0.45), Color(0.45, 0.8, 1), Color(1, 0.85, 0.35), GOOD]
+	for i in range(28):
+		var p := ColorRect.new()
+		p.size = Vector2(10, 14)
+		p.color = cols[i % cols.size()]
+		p.position = Vector2(360, 120)
+		p.z_index = 40
+		world_area.add_child(p)
+		var dir := Vector2(randf_range(-1, 1), randf_range(-1.2, -0.3)).normalized()
+		var target := p.position + dir * randf_range(160, 320) + Vector2(0, 280)
+		var t := create_tween()
+		t.set_parallel(true)
+		t.tween_property(p, "position", target, 1.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		t.tween_property(p, "rotation", randf_range(-6, 6), 1.3)
+		t.tween_property(p, "modulate:a", 0.0, 1.3)
+		t.set_parallel(false)
+		t.tween_callback(p.queue_free)
+
+
+# ===========================================================================
+#  PLAYER INPUT
+# ===========================================================================
+
+func _on_price_changed(value: float) -> void:
+	GameState.current_price = value
+	var d: float = Sim.calculate_demand(value, GameState.reputation)
+	var profit: float = Sim.calculate_daily_profit(value, SimConfig.PRODUCT_COST, GameState.reputation, GameState.inventory)
+	price_label.text = "Price Rs %d     ~%d customers/day     est. profit Rs %d/day" % [int(value), int(round(d)), int(round(profit))]
+
+
+func _on_buy() -> void:
+	var cost: int = BUY_QUANTITY * int(SimConfig.PRODUCT_COST)
+	Sim.buy_inventory(BUY_QUANTITY)
+	stock_ordered += BUY_QUANTITY
+	_diary("Ordered %d units of soap (Rs %d). Shelves are full again." % [BUY_QUANTITY, cost])
+	_float("+%d stock" % BUY_QUANTITY, STOCK_COL, stock_value.global_position + Vector2(0, 30))
+	_refresh_hud()
+	_update_buttons()
+
+
+func _on_hire_ravi() -> void:
+	Sim.hire_ravi()
+	ravi_hire_day = GameState.day
+	ravi.visible = true
+	var target := ravi.position
+	ravi.position = target + Vector2(320, 0)
+	var t := create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	t.tween_property(ravi, "position", target, 0.6)
+	_float("Ravi joined!", GOOD, Vector2(360, 300))
+	_float("Capacity 25 -> 50", REP_COL, Vector2(360, 340))
+	_diary("Ravi started work today. The shop can now serve twice as many customers.")
+	_shake(5.0)
+	_refresh_hud()
+	_update_buttons()
+
+
+func _on_expand() -> void:
+	Sim.expand_shop()
+	_diary("Opened the bigger shop next door. Twice the space!")
+	var t := create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t.set_parallel(true)
+	t.tween_property(shop, "size", Vector2(360, 200), 0.6)
+	t.tween_property(shop, "position", Vector2(180, 30), 0.6)
+	_shake(12.0)
+	_confetti()
+	_update_buttons()
+
+
+# ===========================================================================
+#  FLOW CONTROL
+# ===========================================================================
+
+func _on_flow_pressed() -> void:
+	if chapter_done:
+		return
+	running = not running
+	day_timer = 0.0
+	_update_buttons()
+
+
+func _on_reset_pressed() -> void:
+	chapter_done = false
+	running = false
+	day_timer = 0.0
+	ravi.visible = false
+	overlay.visible = false
+	overlay.modulate.a = 1.0
+	shop.position = Vector2(230, 40)
+	shop.size = Vector2(260, 170)
+	world_area.position = world_home
+	total_revenue = 0.0
+	stock_ordered = 0
+	price_changes = 0
+	ravi_hire_day = -1
+	_clear_reflection()
+	_clear_log()
+	MissionManager.reset()
+	_refresh_hud()
+	_update_buttons()
+
+
+# ===========================================================================
+#  MISSION ENGINE -> UI
+# ===========================================================================
+
+func _on_mission_started(m: Dictionary) -> void:
+	running = false
+	day_timer = 0.0
+	mission_title.text = m.title
+	mission_objective.text = "Objective: " + m.objective
+	mission_status.text = m.description
+	_diary("New chapter beat: " + m.title)
+	_pulse(mission_card)
+	_update_buttons()
+
+
+func _on_mission_completed(m: Dictionary) -> void:
+	var msg: String = MissionManager.last_message
+	mission_status.text = "Done! " + (msg if msg != "" else m.title)
+	_float("Mission complete!", GOOD, Vector2(360, 200))
+
+
+func _on_chapter_completed() -> void:
+	chapter_done = true
+	running = false
+	_build_reflection()
+	overlay.visible = true
+	overlay.modulate.a = 0.0
+	var t := create_tween()
+	t.tween_interval(0.6)
+	t.tween_property(overlay, "modulate:a", 1.0, 0.6)
+	_update_buttons()
+
+
+# ===========================================================================
+#  DISPLAY HELPERS
+# ===========================================================================
+
+func _refresh_hud() -> void:
+	day_value.text = str(GameState.day)
+	cash_value.text = "Rs %d" % int(GameState.cash)
+	rep_value.text = str(int(round(GameState.reputation)))
+	stock_value.text = str(GameState.inventory)
+	stock_value.add_theme_color_override("font_color", WARN if GameState.inventory <= LOW_STOCK else STOCK_COL)
+
+
+func _update_buttons() -> void:
+	var cur: Dictionary = MissionManager.get_current_mission()
+	var cur_id: String = cur.get("id", "")
+
+	var can_hire_ravi: bool = (cur_id == "the_long_queue") and not GameState.has_ravi
+	ravi_button.disabled = not can_hire_ravi
+	ravi_button.text = "Ravi hired" if GameState.has_ravi else "Hire Ravi (Rs %d/day)" % int(SimConfig.RAVI_WAGE)
+
+	expand_button.disabled = not ((cur_id == "the_shop_next_door") and not GameState.has_expanded_shop)
+
+	buy_button.text = "Buy %d stock (Rs %d)" % [BUY_QUANTITY, BUY_QUANTITY * int(SimConfig.PRODUCT_COST)]
+	buy_button.disabled = chapter_done
+
+	flow_button.disabled = chapter_done
+	flow_button.text = "Pause" if running else "Start / Continue"
+
+	_update_emphasis(cur_id)
+
+
+## Brighten the button the player should press now; subdue the rest (Task 6).
+func _update_emphasis(cur_id: String) -> void:
+	var focus: Button = null
+	if cur_id == "running_out_of_stock":
+		focus = buy_button
+	elif cur_id == "the_long_queue":
+		focus = ravi_button
+	elif cur_id == "the_shop_next_door":
+		focus = expand_button
+	else:
+		focus = flow_button   # Opening Day & Month-End: keep trading
+
+	for b in [buy_button, ravi_button, expand_button, flow_button]:
+		if b.disabled or b == focus:
+			b.modulate = Color(1, 1, 1, 1)
+		else:
+			b.modulate = Color(1, 1, 1, 0.72)
+
+
+func _pulse(node: Control) -> void:
+	node.scale = Vector2(1, 1)
+	node.pivot_offset = node.size * 0.5
+	var t := create_tween().set_trans(Tween.TRANS_SINE)
+	t.tween_property(node, "scale", Vector2(1.04, 1.04), 0.15)
+	t.tween_property(node, "scale", Vector2(1, 1), 0.15)
+
+
+func _diary_day(r: Dictionary) -> void:
+	_diary("Day %d  -  %d customers bought soap (Rs %d)." % [r.day, r.served, int(r.revenue)])
+	if r.lost > 0:
+		_diary("   %d people left without buying - the wait was too long." % r.lost)
+	if r.inventory <= LOW_STOCK:
+		_diary("   Stock is running low. Better order more soon.")
+
+
+func _diary(line: String) -> void:
+	log_lines.append(line)
+	while log_lines.size() > LOG_MAX:
+		log_lines.pop_front()
+	diary_log.text = "\n".join(PackedStringArray(log_lines))
+
+
+func _clear_log() -> void:
+	log_lines.clear()
+	diary_log.text = ""
+
+
+# ===========================================================================
+#  REFLECTION SCREEN (the Mirror) + "Your Opinion Matters" (Task: Mirror + feedback)
+# ===========================================================================
+
+func _on_price_drag_ended(value_changed: bool) -> void:
+	if value_changed:
+		price_changes += 1
+
+
+func _build_reflection() -> void:
+	_clear_reflection()
+
+	_ref_label("YOUR BUSINESS", MUTED, 16)
+	_ref_label("Days survived: %d\nCustomers served: %d\nCustomers turned away: %d\nTotal earned: Rs %d\nStock ordered: %d units\nMoney left: Rs %d" % [
+		GameState.day, GameState.customers_served, GameState.customers_lost,
+		int(total_revenue), stock_ordered, int(GameState.cash)], TEXT, 18)
+
+	_ref_label("YOUR DECISIONS", MUTED, 16)
+	var ravi_txt: String = ("day %d" % ravi_hire_day) if ravi_hire_day >= 0 else "not hired"
+	_ref_label("Final price: Rs %d\nPrice changes: %d\nRavi hired: %s\nReputation: %d" % [
+		int(GameState.current_price), price_changes, ravi_txt, int(round(GameState.reputation))], TEXT, 18)
+
+	_ref_label("YOUR STORY", MUTED, 16)
+	var story: Label = _ref_label(_make_story(), ACCENT, 19)
+	story.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+	_ref_label("YOUR OPINION MATTERS", MUTED, 16)
+	q1_edit = _ref_question("What confused you?")
+	q2_edit = _ref_question("What did you enjoy the most?")
+	q3_edit = _ref_question("Would you continue building your business?")
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	submit_button = Button.new()
+	submit_button.text = "Submit"
+	submit_button.custom_minimum_size = Vector2(0, 50)
+	submit_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_style_button(submit_button, ACCENT.darkened(0.1))
+	submit_button.pressed.connect(_on_submit_feedback)
+	var again := Button.new()
+	again.text = "Play Again"
+	again.custom_minimum_size = Vector2(160, 50)
+	_style_button(again, PANEL_HI)
+	again.pressed.connect(_on_reset_pressed)
+	row.add_child(submit_button)
+	row.add_child(again)
+	_ref_add(row)
+
+
+func _make_story() -> String:
+	var parts: Array[String] = []
+	if ravi_hire_day >= 0 and ravi_hire_day <= 6:
+		parts.append("You trusted Ravi early - and customers stopped leaving your shop.")
+	elif ravi_hire_day >= 0:
+		parts.append("You waited before hiring Ravi, but help arrived in time.")
+	else:
+		parts.append("You ran the whole shop on your own.")
+	if GameState.cash >= 9000:
+		parts.append("You kept healthy cash reserves instead of spending everything.")
+	elif GameState.cash >= 4000:
+		parts.append("You balanced spending and saving to keep the shop steady.")
+	else:
+		parts.append("You spent aggressively to grow - a bolder, riskier path.")
+	if GameState.customers_served > 0 and GameState.customers_lost > GameState.customers_served * 0.25:
+		parts.append("Many customers left unserved - capacity and stock were tight.")
+	else:
+		parts.append("You served most customers who came - a smooth operation.")
+	if GameState.has_expanded_shop:
+		parts.append("And you took the leap to expand next door.")
+	return " ".join(PackedStringArray(parts))
+
+
+func _on_submit_feedback() -> void:
+	if q1_edit == null:
+		return
+	var entry := "Q1 confused: %s\nQ2 enjoyed: %s\nQ3 continue: %s\n---\n" % [q1_edit.text, q2_edit.text, q3_edit.text]
+	var existing := ""
+	if FileAccess.file_exists("user://biztown_feedback.txt"):
+		existing = FileAccess.get_file_as_string("user://biztown_feedback.txt")
+	var f := FileAccess.open("user://biztown_feedback.txt", FileAccess.WRITE)
+	if f != null:
+		f.store_string(existing + entry)
+		f.close()
+	submit_button.text = "Thank you, founder!"
+	submit_button.disabled = true
+
+
+func _ref_add(n: Control) -> void:
+	reflection_box.add_child(n)
+	reflection_nodes.append(n)
+
+
+func _ref_label(text: String, color: Color, size: int) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_color_override("font_color", color)
+	l.add_theme_font_size_override("font_size", size)
+	_ref_add(l)
+	return l
+
+
+func _ref_question(q: String) -> LineEdit:
+	_ref_label(q, TEXT, 16)
+	var e := LineEdit.new()
+	e.placeholder_text = "type here..."
+	_ref_add(e)
+	return e
+
+
+func _clear_reflection() -> void:
+	for n in reflection_nodes:
+		if is_instance_valid(n):
+			n.queue_free()
+	reflection_nodes.clear()
+	submit_button = null
+	q1_edit = null
+	q2_edit = null
+	q3_edit = null

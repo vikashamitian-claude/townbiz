@@ -1,0 +1,286 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Game.gd" id="1_game"]
+
+[node name="Game" type="Control"]
+layout_mode = 3
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_game")
+
+[node name="Bg" type="ColorRect" parent="."]
+layout_mode = 1
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.09, 0.11, 0.16, 1)
+
+[node name="HUD" type="HBoxContainer" parent="."]
+layout_mode = 1
+offset_left = 16.0
+offset_top = 14.0
+offset_right = 704.0
+offset_bottom = 96.0
+theme_override_constants/separation = 12
+
+[node name="MissionCard" type="PanelContainer" parent="."]
+layout_mode = 1
+offset_left = 16.0
+offset_top = 108.0
+offset_right = 704.0
+offset_bottom = 252.0
+
+[node name="MC" type="MarginContainer" parent="MissionCard"]
+layout_mode = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 12
+
+[node name="MVBox" type="VBoxContainer" parent="MissionCard/MC"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="MissionTitle" type="Label" parent="MissionCard/MC/MVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 36
+text = "-"
+
+[node name="MissionObjective" type="Label" parent="MissionCard/MC/MVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+autowrap_mode = 2
+text = "-"
+
+[node name="MissionStatus" type="Label" parent="MissionCard/MC/MVBox"]
+layout_mode = 2
+autowrap_mode = 2
+text = "-"
+
+[node name="WorldArea" type="Control" parent="."]
+layout_mode = 1
+offset_left = 0.0
+offset_top = 262.0
+offset_right = 720.0
+offset_bottom = 742.0
+
+[node name="Floor" type="ColorRect" parent="WorldArea"]
+layout_mode = 0
+offset_left = 0.0
+offset_top = 250.0
+offset_right = 720.0
+offset_bottom = 480.0
+color = Color(0.16, 0.18, 0.22, 1)
+
+[node name="Shop" type="Panel" parent="WorldArea"]
+layout_mode = 0
+offset_left = 230.0
+offset_top = 40.0
+offset_right = 490.0
+offset_bottom = 210.0
+
+[node name="ShopSign" type="Label" parent="WorldArea"]
+layout_mode = 0
+offset_left = 230.0
+offset_top = 12.0
+offset_right = 490.0
+offset_bottom = 40.0
+theme_override_font_sizes/font_size = 22
+horizontal_alignment = 1
+text = "SOAP SHOP"
+
+[node name="Window" type="ColorRect" parent="WorldArea"]
+layout_mode = 0
+offset_left = 255.0
+offset_top = 70.0
+offset_right = 320.0
+offset_bottom = 120.0
+color = Color(0.55, 0.78, 0.95, 1)
+
+[node name="Door" type="ColorRect" parent="WorldArea"]
+layout_mode = 0
+offset_left = 400.0
+offset_top = 120.0
+offset_right = 460.0
+offset_bottom = 210.0
+color = Color(0.3, 0.22, 0.16, 1)
+
+[node name="Counter" type="Panel" parent="WorldArea"]
+layout_mode = 0
+offset_left = 300.0
+offset_top = 215.0
+offset_right = 420.0
+offset_bottom = 245.0
+
+[node name="Ravi" type="Control" parent="WorldArea"]
+visible = false
+layout_mode = 0
+offset_left = 430.0
+offset_top = 175.0
+offset_right = 470.0
+offset_bottom = 245.0
+
+[node name="RaviBody" type="Panel" parent="WorldArea/Ravi"]
+layout_mode = 0
+offset_left = 4.0
+offset_top = 26.0
+offset_right = 30.0
+offset_bottom = 60.0
+
+[node name="RaviHead" type="Panel" parent="WorldArea/Ravi"]
+layout_mode = 0
+offset_left = 7.0
+offset_top = 6.0
+offset_right = 27.0
+offset_bottom = 26.0
+
+[node name="RaviLabel" type="Label" parent="WorldArea/Ravi"]
+layout_mode = 0
+offset_left = -10.0
+offset_top = -16.0
+offset_right = 44.0
+offset_bottom = 4.0
+theme_override_font_sizes/font_size = 14
+horizontal_alignment = 1
+text = "Ravi"
+
+[node name="DiaryCard" type="PanelContainer" parent="."]
+layout_mode = 1
+offset_left = 16.0
+offset_top = 752.0
+offset_right = 704.0
+offset_bottom = 936.0
+
+[node name="DMargin" type="MarginContainer" parent="DiaryCard"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 10
+
+[node name="DVBox" type="VBoxContainer" parent="DiaryCard/DMargin"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="DiaryTitle" type="Label" parent="DiaryCard/DMargin/DVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "SHOP DIARY"
+
+[node name="DiaryLog" type="Label" parent="DiaryCard/DMargin/DVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 17
+autowrap_mode = 2
+text = ""
+
+[node name="Controls" type="VBoxContainer" parent="."]
+layout_mode = 1
+offset_left = 16.0
+offset_top = 946.0
+offset_right = 704.0
+offset_bottom = 1268.0
+theme_override_constants/separation = 12
+
+[node name="PriceCard" type="PanelContainer" parent="Controls"]
+layout_mode = 2
+
+[node name="PMargin" type="MarginContainer" parent="Controls/PriceCard"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 10
+
+[node name="PVBox" type="VBoxContainer" parent="Controls/PriceCard/PMargin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="PriceLabel" type="Label" parent="Controls/PriceCard/PMargin/PVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Price"
+
+[node name="PriceSlider" type="HSlider" parent="Controls/PriceCard/PMargin/PVBox"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+
+[node name="ActionRow" type="HBoxContainer" parent="Controls"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="BuyButton" type="Button" parent="Controls/ActionRow"]
+custom_minimum_size = Vector2(0, 52)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Buy stock"
+
+[node name="RaviButton" type="Button" parent="Controls/ActionRow"]
+custom_minimum_size = Vector2(0, 52)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Hire Ravi"
+
+[node name="ExpandButton" type="Button" parent="Controls/ActionRow"]
+custom_minimum_size = Vector2(0, 52)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Expand shop"
+
+[node name="FlowRow" type="HBoxContainer" parent="Controls"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="FlowButton" type="Button" parent="Controls/FlowRow"]
+custom_minimum_size = Vector2(0, 58)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Start / Continue"
+
+[node name="ResetButton" type="Button" parent="Controls/FlowRow"]
+custom_minimum_size = Vector2(160, 58)
+layout_mode = 2
+text = "Reset"
+
+[node name="Overlay" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="Dim" type="ColorRect" parent="Overlay"]
+layout_mode = 1
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.6)
+
+[node name="Center" type="CenterContainer" parent="Overlay"]
+layout_mode = 1
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="CompletePanel" type="PanelContainer" parent="Overlay/Center"]
+custom_minimum_size = Vector2(560, 0)
+layout_mode = 2
+
+[node name="CMargin" type="MarginContainer" parent="Overlay/Center/CompletePanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 28
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 28
+
+[node name="CVBox" type="VBoxContainer" parent="Overlay/Center/CompletePanel/CMargin"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="CompleteTitle" type="Label" parent="Overlay/Center/CompletePanel/CMargin/CVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 38
+horizontal_alignment = 1
+text = "CHAPTER 1 COMPLETE"
+
+[node name="CompleteSub" type="Label" parent="Overlay/Center/CompletePanel/CMargin/CVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+horizontal_alignment = 1
+autowrap_mode = 2
+text = "You built your first successful business."

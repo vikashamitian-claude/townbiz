@@ -1,0 +1,35 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/MissionUI.gd" id="1_ui"]
+
+[node name="MissionUI" type="Control"]
+layout_mode = 3
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_ui")
+
+[node name="VBox" type="VBoxContainer" parent="."]
+layout_mode = 1
+offset_left = 40.0
+offset_top = 60.0
+offset_right = 680.0
+offset_bottom = 520.0
+theme_override_constants/separation = 24
+
+[node name="Title" type="Label" parent="VBox"]
+layout_mode = 2
+text = "-"
+
+[node name="Description" type="Label" parent="VBox"]
+layout_mode = 2
+autowrap_mode = 2
+text = "-"
+
+[node name="Objective" type="Label" parent="VBox"]
+layout_mode = 2
+autowrap_mode = 2
+text = "-"
+
+[node name="Status" type="Label" parent="VBox"]
+layout_mode = 2
+text = "-"
