@@ -1,0 +1,16 @@
+# Godot 4 local/editor data
+.godot/
+
+# Exported builds and packaged artifacts
+build/
+*.apk
+*.aab
+*.pck
+*.zip
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
+*.log
