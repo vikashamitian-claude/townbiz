@@ -58,6 +58,20 @@ with Godot, and report the output back.
 
 Android export stays gated regardless of the above.
 
+## Sprint 3D - Walkable town presentation (owner-approved pivot, HUMAN_DECISIONS.md)
+
+Status: **Phase 3D-1 code complete — awaiting on-device verification**
+
+1. [x] **Phase 3D-1** — graybox 3D town: touch-joystick player, follow camera,
+   soap shop + street + customers as 3D figures, contextual interactions
+   (manage at the counter, hire Ravi in person, expand next door in person),
+   all HUD/modals/save wired to the unchanged sim engine.
+   `scenes/Town3D.tscn`, `scripts/world3d/`. Now the main scene;
+   `Game.tscn` kept as 2D fallback.
+2. [ ] **Phase 3D-2** — swap graybox for CC0 low-poly assets (Kenney-style;
+   Vikash downloads on phone, uploads via GitHub web).
+3. [ ] **Phase 3D-3** — interiors, character variety, town life polish.
+
 ## Backlog
 
 - Staff hiring

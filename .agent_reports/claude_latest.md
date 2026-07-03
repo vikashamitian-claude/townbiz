@@ -1,163 +1,99 @@
-# Claude Code Report — BizTown "Living Business" Build (Chapter 1)
+# Claude Code Report — Sprint 3D, Phase 3D-1 follow-up (self-review pass)
 
 Date: 2026-07-03
 
-## Environment note (read first)
+- STAGE: 3D-1 — self-directed develop/review/fix pass on the walkable town (PR #3)
+- STATUS: PASS WITH MINOR FIXES — real bug found and fixed; static verification
+  tooling upgraded; full on-device confirmation still pending (see below)
 
-This session runs in a sandboxed remote container with **no Godot binary
-installed**, and outbound network access is restricted to the
-`vikashamitian-claude/townbiz` GitHub repository (the session's GitHub
-integration explicitly denied `godotengine/godot`: `"GitHub access to this
-repository is not enabled for this session"`; a direct HTTPS download of a
-Godot release also came back `403` from the egress proxy). I could not
-install or download Godot, and therefore **could not execute**
-`godot --headless --path . res://tests/TestRunner.tscn` or the balance
-sweep. Per the anti-hallucination rules, I am not claiming any test
-"passed" — everything below that required execution is marked BLOCKER
-with the real reason, not a guess.
+## What changed and why
 
-Everything that does not require running the engine (file integration,
-autoload wiring, API-compatibility fixes, UI rewiring, static/manual
-trace of the test suite's logic against the shipped engine code) is
-complete and described below.
+Asked to develop, test, review, and fix autonomously. Godot itself remains
+unavailable in this cloud sandbox (no binary, no network path to fetch one —
+confirmed again this session), but two things are newly available and used:
 
----
+1. **`gdtoolkit` (pip-installable, PyPI is reachable)** — `gdlint`/`gdformat`
+   run a real independent GDScript grammar parser. Not a Godot API checker
+   (doesn't know Node3D/Camera3D/etc. exist), but it DOES catch real syntax
+   errors, and running it project-wide gives a genuine (not fabricated)
+   verification signal: **`gdformat --check` parses all 14 `.gd` files in
+   `scripts/` and `tests/` with zero parse failures.** Documented for future
+   sessions in `CLAUDE.md`.
+2. `godot3` is `apt`-installable but is Godot 3.x — a different, incompatible
+   GDScript dialect from this Godot-4.x project. Confirmed unusable for
+   testing this codebase; noted so no future session wastes time on it.
 
-## STAGE: 1 — Integrate & compile
+## Bug found and fixed (via gdlint review, not on-device report)
 
-STATUS: BLOCKER (integration complete; headless-parse verification blocked — no Godot binary available)
+**`scripts/world3d/Town3D.gd`** — the "Ravi" 3D label was built by a helper
+that unconditionally parented it to the town root, then the call site tried
+to re-parent it under `ravi_npc`. Godot does not allow adding a node that
+already has a parent, so the label never actually followed Ravi around —
+it likely explains the "Ravi" text you saw floating away from his character
+in the last screenshot. Fixed by making the label builder take an explicit
+parent and passing `ravi_npc` directly (no reparenting needed).
 
-FILES CHANGED:
-- `scripts/sim/SimConfig.gd` (replaced with drop, one defensive edit — see below)
-- `scripts/sim/GameState.gd` (replaced with drop)
-- `scripts/sim/Sim.gd` (replaced with drop)
-- `scripts/events/EventEngine.gd` (new, from drop)
-- `scripts/save/SaveManager.gd` (new, from drop)
-- `scripts/mission/MissionData.gd` (replaced with drop)
-- `scripts/mission/MissionManager.gd` (replaced with drop)
-- `tests/TestRunner.gd`, `tests/TestRunner.tscn` (new, from drop)
-- `project.godot` (autoloads re-registered: `GameState`, `Events`, `Sim`, `Missions`, `SaveManager`, in that exact order per INTEGRATION.md)
-- `BIZTOWN_BUILD_SPEC.md`, `INTEGRATION.md` (copied into repo root, as shipped)
-- Removed: `scenes/SimTest.tscn`, `scenes/MissionTest.tscn`, `scenes/MissionUI.tscn`, `scripts/SimTest.gd(.uid)`, `scripts/MissionTest.gd(.uid)`, `scripts/MissionUI.gd(.uid)` — see rationale below.
+## Refactor (triggered by a real lint flag, not cosmetic)
 
-EDITS TO DROPPED CODE:
-1. `scripts/sim/SimConfig.gd` — changed `const CREDIT_NAMES: Array[String] = [...]` to `const CREDIT_NAMES := [...]` (dropped the explicit typed-array annotation on a `const`). **Reason: defensive syntax fix.** Typed-array constants have been a known GDScript foot-gun across some 4.x point releases; nothing downstream needs the strict type (`EventEngine.gd` already reads it into an untyped `Array`), so this removes a single high-blast-radius risk (a parse failure on this class would break every autoload, since `SimConfig` is referenced everywhere via `class_name`) at zero behavior cost. No values changed.
-2. Autoload name for `MissionManager.gd` registered as **`Missions`** (not `MissionManager`) — this matches the drop's own internal contract (`SaveManager.gd` calls `Missions.to_dict()`/`Missions.from_dict()`, and `MissionManager.gd`'s own header comment says "Autoloaded as 'Missions'"), and matches INTEGRATION.md's stated autoload table. This is a rename of the *old* project's autoload name, required for the drop's own files to resolve at all — not a change to the drop's logic.
+`gdlint` flagged `Town3D.gd` at 1070 lines (over its 1000-line guideline).
+Extracted the six stateless graybox mesh-builder functions (`_static_box`,
+`_visual_box`, `_label3d`, `_tree`, `_person`, `_tint_person`) into a new
+**`scripts/world3d/GrayboxKit.gd`** (`class_name GrayboxKit`, static
+functions, no game state/autoload references). This is also exactly the
+swap point Phase 3D-2 needs when replacing boxes with real low-poly assets
+(see `HUMAN_DECISIONS.md`) — one file to change, not scattered call sites.
+Town3D.gd is now 976 lines. All call sites updated; every one traced by
+hand against the extracted signatures (parent param added where the
+original called `add_child` on `self`).
 
-No formulas, weights, signal shapes, or business-rule numbers in the dropped code were changed.
+Also fixed two `gdlint` "declaration order" flags (cosmetic, zero behavior
+change): `SaveManager.gd` (signals before the const), `Player3D.gd` (public
+var before private `_`-prefixed vars).
 
-**Deletion rationale (not part of the drop, pre-existing repo cleanup):** `SimTest.gd`, `MissionTest.gd`, and `MissionUI.gd` (+ their `.tscn` scenes) were already documented in `TASKS.md` as legacy/unused, not referenced by any active scene or autoload. They call APIs that no longer exist at all in the new engine (`Sim.get_capacity()`, `Sim.apply_monthly_costs()`, `Sim.calculate_daily_profit()`, the old `MissionManager` autoload name, and mission-dict fields `description`/`objective` that the new `MissionData.gd` doesn't have). Since they are unreachable from any autoload or the main scene, they would not break the headless test run — I removed them because they are now permanently broken if ever opened/run and are fully superseded by `tests/TestRunner.gd`. `scripts/Main.gd`/`scenes/Main.tscn` (a fully separate old prototype with no engine dependency) were left untouched.
+## Also fixed (from the prior on-device screenshot report)
 
-TEST OUTPUT: **BLOCKER — command could not be run.**
+Already pushed in the prior commit on this PR: the flat-color seam where the
+old 44x44 ground plane ended (enlarged to 200x200 + blended sky ground
+colors), and pulled the follow camera back for a wider establishing view.
+
+## FILES CHANGED
+
+- `scripts/world3d/GrayboxKit.gd` — NEW
+- `scripts/world3d/Town3D.gd` — extraction, bug fix, ordering fix, line-wrap cleanup
+- `scripts/world3d/Player3D.gd` — ordering fix only
+- `scripts/save/SaveManager.gd` — ordering fix only
+- `CLAUDE.md` — documents the gdtoolkit verification capability for future sessions
+
+## TEST OUTPUT
+
 ```
-$ which godot godot4 Godot
-(nothing found anywhere on the filesystem)
-$ curl -sSL https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip
-{"message":"GitHub access to this repository is not enabled for this session. Use add_repo to request access.","documentation_url":"https://docs.anthropic.com/en/docs/claude-code/github-actions"}
+$ gdformat --check $(find scripts tests -name "*.gd")
+would reformat scripts/sim/Sim.gd
+would reformat scripts/sim/SimConfig.gd
+would reformat scripts/sim/GameState.gd
+would reformat scripts/mission/MissionData.gd
+would reformat scripts/mission/MissionManager.gd
+would reformat scripts/events/EventEngine.gd
+would reformat scripts/Game.gd
+would reformat scripts/world3d/Town3D.gd
+would reformat scripts/world3d/Player3D.gd
+would reformat scripts/Main.gd
+would reformat tests/BalanceSweep.gd
+would reformat tests/TestRunner.gd
+12 files would be reformatted, 2 files would be left unchanged.
+EXIT: 1
 ```
-The session's egress proxy scopes GitHub access to `vikashamitian-claude/townbiz` only; `godotengine/godot` releases are out of scope and there is no other network path to obtain a Godot binary here.
+Exit 1 here means "some files aren't gdformat-styled" (cosmetic), NOT a parse
+failure — no file threw a parse error. That's the real signal: all 14 `.gd`
+files are syntactically valid GDScript. Remaining `gdlint` output is only
+line-length style warnings on lines I didn't touch (pre-existing in the
+original code drop) — not pursued, to avoid unrelated churn on approved-spec
+files.
 
-In place of execution, I did a full manual trace of `tests/TestRunner.gd`'s six suites against the shipped `Sim.gd`/`EventEngine.gd`/`MissionManager.gd` logic (signal ordering, mission condition fields, dictionary-key contracts between `EventEngine` and `Sim`, RNG-state save/load round-trip) and found the drop internally consistent — I did not find a genuine design defect worth a `HUMAN_DECISIONS.md` entry.
+**Still not verified by execution:** whether the game actually runs/looks
+right on-device. This static pass narrows the risk window; it is not a
+substitute for the phone playtest.
 
-OPEN QUESTIONS: How should Stage 2 verification actually happen, given Godot isn't available in this sandbox? (See "Recommendation" at the end of this report.)
+## OPEN QUESTIONS
 
----
-
-## STAGE: 2 — All tests green
-
-STATUS: BLOCKER (same root cause as Stage 1 — no Godot binary, network egress to `godotengine/godot` denied)
-
-TEST OUTPUT: none — `godot --headless --path . res://tests/TestRunner.tscn` was never executed. No exit code to report. I am explicitly not claiming a pass.
-
----
-
-## STAGE: 3 — Wire the UI in Game.gd
-
-STATUS: BLOCKER for runtime verification (same cause); code changes are complete and statically reviewed.
-
-FILES CHANGED: `scripts/Game.gd` (full rewrite of the UI wiring layer; presentation-only, no simulation logic).
-
-What was wired, matching the required hooks exactly:
-- Demand hint now uses `Sim.calculate_demand_range()` and shows a range ("Price Rs 35   22-34 customers likely"), never a single number.
-- Buy button shows `Sim.get_current_unit_cost()` ("today") and the previous day's cached cost ("yesterday").
-- `Events.event_telegraphed` shows a dedicated banner (built at runtime, no `.tscn` edits), cleared at the start of the next day.
-- `Events.credit_requested` / `Events.bulk_offered` / `Events.lender_offered` all route through one reusable decision-modal (built at runtime) wired to `Sim.grant_credit()`/`refuse_credit()`, `Sim.accept_bulk_offer()`/`decline_bulk_offer()`, `Sim.accept_lender()`/`decline_lender()`. Multiple same-day decisions queue and show one at a time; showing a modal pauses the day-advance loop.
-- `Sim.month_ended` now drives a diary line (rent paid, outstanding loan if any) instead of Game.gd re-implementing month-end math itself (that duplicate logic is gone now that `Sim.run_day()` owns it).
-- HUD gained a "REGULARS" chip.
-- Boot: `SaveManager.has_save()` shows a Continue / New Game choice before the game becomes interactive.
-
-Also fixed (required — otherwise the scene fails at the first frame, since these methods/fields no longer exist on the new engine): renamed all `MissionManager.*` references to `Missions.*`; replaced the removed `Sim.calculate_daily_profit()`/`Sim.apply_monthly_costs()`/`Sim.get_capacity()` calls; adapted to the new mission-dict shape (`intro`/`debrief` instead of `description`/`objective`/`reward.message`); replaced `MissionManager.reset()` (no longer exists) with explicit `GameState.reset()` + `Missions.start_chapter()`; fixed `_spawn_customers()`, which read a `result.demand` key the new `Sim.run_day()` result dictionary doesn't have (computed as `served + lost` instead).
-
-I could not open the scene to confirm there are no remaining typos — this is static review only.
-
-OPEN QUESTIONS: none design-wise; purely an execution-verification gap (see recommendation).
-
----
-
-## STAGE: 4 — Balance sweep
-
-STATUS: BLOCKER for numbers (same cause); harness written and ready to run.
-
-FILES CHANGED: `tests/BalanceSweep.gd`, `tests/BalanceSweep.tscn` (new).
-
-Implements the spec exactly: 100 seeds x 60 days, naive default-price bot (tops up stock, hires Ravi once affordable, always declines credit/bulk/lender), reports % of seeds that reach every month-end with cash >= 0 without ever being offered the lender, and the median day expansion first becomes affordable. No `Sim.gd` values were touched to "pre-balance" this — I did not fabricate a before/after number since I never ran it.
-
-Run with: `godot --headless --path . res://tests/BalanceSweep.tscn`
-
-TEST OUTPUT: none — not executed.
-
----
-
-## STAGE: 5 — Docs & handover
-
-STATUS: PASS (this stage doesn't require Godot)
-
-FILES CHANGED: `README.md`, `TASKS.md`, `.agent_reports/SPRINT_STATUS.md`, `.agent_reports/claude_latest.md` (this file).
-
----
-
-## Recommendation (not "READY FOR HUMAN PLAYTEST" — being honest about why)
-
-I am deliberately **not** outputting "READY FOR HUMAN PLAYTEST", because Stage 2's
-acceptance bar ("all 6 suites pass, exit code 0") has not actually been met by
-anyone yet in this session — it has only been reasoned about statically. To close
-this out for real, one of the following needs to happen:
-1. You (Vikash) run `godot --headless --path . res://tests/TestRunner.tscn` and
-   `godot --headless --path . res://tests/BalanceSweep.tscn` locally (or in CI)
-   and paste the output back — I'll debug any failures from there, and this
-   becomes a normal Stage 2/4 iteration loop.
-2. This session gets a way to obtain a Godot binary (e.g. `godotengine/godot`
-   added to the session's allowed GitHub repos, or a pre-installed Godot in the
-   environment image) so I can run it myself.
-
-Everything else in the five stages is done to the best of what static review
-can verify.
-
----
-
-## Update 2026-07-03 (later): Android-first verification workflow
-
-Vikash confirmed he works entirely from an Android device (no desktop). That
-resolves the Stage 2/4 blocker path: his phone, running the official Godot
-Android editor, becomes the test runtime. Changes made to support that loop:
-
-FILES CHANGED:
-- `tests/TestRunner.gd` — when NOT running headless (`DisplayServer.get_name()
-  != "headless"`), the runner now draws its full report on screen (failures
-  listed first, screenshot-friendly) instead of calling `quit()` — on a phone,
-  quitting instantly made the results unreadable. Headless behavior is
-  byte-identical: same suites, same asserts, same exit codes. Also: renamed
-  the `_suite(name, ...)` parameter to `suite_name` (shadowed `Node.name`,
-  a GDScript warning), and the runner now deletes the autosave when finished
-  so the real game doesn't offer "Continue" into leftover test state.
-  **Test logic untouched — output plumbing and cleanup only.**
-- `tests/BalanceSweep.gd` — same on-screen-report + save-cleanup treatment.
-- `ANDROID_TESTING.md` — new: the full phone workflow (install Godot Android
-  editor, get the branch onto the phone, run the test scenes, what to send
-  back).
-- `README.md`, `TASKS.md` — point at the Android workflow as the unblock path.
-
-NEXT ACTION (on Vikash): follow `ANDROID_TESTING.md`, run
-`tests/TestRunner.tscn` and `tests/BalanceSweep.tscn` on the phone, and send
-back the screenshots. Stage 2 closes on a green report; Stage 4's tuning loop
-starts from the sweep numbers.
+none — next real signal is Vikash re-testing PR #3 on-device.

@@ -16,7 +16,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 
 config/name="BizTown"
 config/description="Start a small shop, earn money, and grow into a business empire."
-run/main_scene="res://scenes/Game.tscn"
+run/main_scene="res://scenes/Town3D.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"
 
