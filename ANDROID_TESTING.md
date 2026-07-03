@@ -46,10 +46,20 @@ survive a test run.
 
 ## Play the game
 
-Tap the main **Play** button (runs `scenes/Game.tscn`). Portrait 720×1280,
-fully touch-driven: set your price with the slider, **Start / Continue** runs
-the days, and decision pop-ups (credit requests, bulk orders, the lender)
-pause the clock until you choose.
+Tap the main **Play** button (runs `scenes/Town3D.tscn` — the 3D walkable
+town). Portrait, fully touch-driven:
+
+- **Drag on the left side of the screen to walk** your founder around town
+- Walk to the **shop counter** → "Manage shop" (price slider, buy stock)
+- During The Long Queue beat, **Ravi stands on the street** — walk up to him
+  to hire him in person
+- During The Shop Next Door beat, walk to the **FOR RENT shop** to expand
+- **Start days** (bottom-right) runs the trading days; customers arrive as
+  3D figures — red ones are walking away unserved
+- Decision pop-ups (credit, bulk orders, the lender) pause the clock
+
+The old 2D interface still exists as a fallback: open `scenes/Game.tscn` and
+Run Current Scene.
 
 ## What to send back to Claude
 

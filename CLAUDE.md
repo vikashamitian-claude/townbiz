@@ -13,7 +13,8 @@ Godot 4.x GDScript business-sim game. Android-first, portrait 720x1280, touch-on
 - `scripts/sim/` — `SimConfig.gd` (ALL tunables), `GameState.gd` (data only), `Sim.gd` (rules, `run_day()`)
 - `scripts/events/EventEngine.gd`, `scripts/mission/`, `scripts/save/SaveManager.gd`
 - Autoloads (order matters): GameState, Events, Sim, Missions, SaveManager
-- `scenes/Game.tscn` + `scripts/Game.gd` — the active game UI
+- `scenes/Town3D.tscn` + `scripts/world3d/` — ACTIVE game UI: 3D walkable town (approved pivot, see HUMAN_DECISIONS.md)
+- `scenes/Game.tscn` + `scripts/Game.gd` — old 2D UI, kept as fallback until 3D reaches parity
 - `tests/TestRunner.tscn` (6 suites), `tests/BalanceSweep.tscn` (100-seed balance)
 
 ## Testing reality

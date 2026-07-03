@@ -3,7 +3,7 @@
 ## Stack
 - Godot 4.x
 - GDScript
-- 2D Isometric
+- 3D stylized low-poly (approved 2026-07-03, see HUMAN_DECISIONS.md; was "2D Isometric")
 - Android First
 
 ## Rules

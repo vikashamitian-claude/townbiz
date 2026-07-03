@@ -17,8 +17,8 @@ Engine constraints:
 - Autoload order in project.godot: GameState, Events, Sim, Missions, SaveManager.
 
 Scope:
-- No new gameplay systems beyond BIZTOWN_BUILD_SPEC.md. Multi-product, multi-business, ranks, multiplayer, achievements, tutorials, difficulty modes = Chapter 2+, forbidden now.
-- UI stays functional: no art assets, sound, or polish passes. Android-first: touch-compatible, portrait 720x1280.
+- No new gameplay systems beyond BIZTOWN_BUILD_SPEC.md. Multi-product, multi-business, ranks, multiplayer, achievements, tutorials, difficulty modes = Chapter 2+, forbidden now. Combat/guns: never (asked and refused, see HUMAN_DECISIONS.md).
+- Presentation = stylized 3D walkable town in Godot (`scripts/world3d/`, approved 2026-07-03 — HUMAN_DECISIONS.md). View code talks to the autoloads only; NO business logic in the view layer. No sound yet. Android-first: touch-compatible, portrait 720x1280.
 - Android export (APK, export preset) is gated behind human approval — do not add it unprompted.
 
 Process:
