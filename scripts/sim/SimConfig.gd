@@ -66,6 +66,10 @@ const BULK_REP_PENALTY: float = 3.0
 const CAPACITY_SOLO: int = 25
 const CAPACITY_WITH_RAVI: int = 50
 
+# --- Player-facing stock decisions (shared by both the 2D and 3D UI) ---
+const BUY_QUANTITY: int = 60    # units bought per tap of the Buy button
+const LOW_STOCK: int = 18       # inventory at/below this shows the low-stock warning
+
 # --- Costs & stakes ---
 const RAVI_WAGE: float = 100.0
 const RENT: float = 3000.0

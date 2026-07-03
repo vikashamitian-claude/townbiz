@@ -1,99 +1,90 @@
-# Claude Code Report — Sprint 3D, Phase 3D-1 follow-up (self-review pass)
+# Claude Code Report — /code-review high-effort pass on the 3D town (post-merge)
 
 Date: 2026-07-03
 
-- STAGE: 3D-1 — self-directed develop/review/fix pass on the walkable town (PR #3)
-- STATUS: PASS WITH MINOR FIXES — real bug found and fixed; static verification
-  tooling upgraded; full on-device confirmation still pending (see below)
+- STAGE: 3D-1 follow-up — full 8-angle code review (--fix) against `git diff 00617f1...HEAD`
+- STATUS: PASS WITH MINOR FIXES — 10 real findings fixed (one severe game-freeze bug); several lower-priority findings knowingly skipped (see below); on-device confirmation still pending.
 
-## What changed and why
+## What this was
 
-Asked to develop, test, review, and fix autonomously. Godot itself remains
-unavailable in this cloud sandbox (no binary, no network path to fetch one —
-confirmed again this session), but two things are newly available and used:
+Ran the bundled `/code-review --fix high` skill against the full Sprint 3D diff
+(before-3D-work base `00617f1` to current `HEAD`): 8 parallel finder angles
+(line-by-line scan, removed-behavior audit, cross-file trace against the sim
+autoloads, reuse, simplification, efficiency, altitude, CLAUDE.md conventions),
+then verified and fixed the survivors directly in the working tree. Full
+findings recorded via the `ReportFindings` tool.
 
-1. **`gdtoolkit` (pip-installable, PyPI is reachable)** — `gdlint`/`gdformat`
-   run a real independent GDScript grammar parser. Not a Godot API checker
-   (doesn't know Node3D/Camera3D/etc. exist), but it DOES catch real syntax
-   errors, and running it project-wide gives a genuine (not fabricated)
-   verification signal: **`gdformat --check` parses all 14 `.gd` files in
-   `scripts/` and `tests/` with zero parse failures.** Documented for future
-   sessions in `CLAUDE.md`.
-2. `godot3` is `apt`-installable but is Godot 3.x — a different, incompatible
-   GDScript dialect from this Godot-4.x project. Confirmed unusable for
-   testing this codebase; noted so no future session wastes time on it.
+## Fixed (10, most severe first)
 
-## Bug found and fixed (via gdlint review, not on-device report)
+1. **Game-breaking**: `_show_next_decision()`'s empty-queue branch never called
+   `_refresh_all()`, so `flow_button.disabled` (set true while a decision was
+   showing) never reset to false — the day-advance loop froze permanently
+   after the very first credit/bulk/lender decision resolved with nothing
+   queued behind it. This would have hit almost every playthrough.
+2. Customer-spawn tween was bound to `Town3D` (`self`), not the spawned NPC —
+   pressing Reset mid-animation left tweens running against freed instances.
+   Fixed by binding via `npc.create_tween()` instead.
+3. The Manage-shop panel didn't pause `running`/`day_timer` or block
+   background touch input, unlike every other modal in the file — days could
+   advance and Hire/Expand could fire underneath it while open.
+4. Boot "Continue" ignored `SaveManager.load_game()`'s failure return —
+   a corrupt/incompatible save left default state with no mission ever shown.
+5. Continue-from-save never restored the neighbor shop's expanded visual
+   even when `GameState.has_expanded_shop` was true.
+6. The entire end-of-chapter feedback form (3 questions + submit-to-file),
+   present in the 2D fallback UI, was missing from the 3D build entirely.
+7. The completion screen's "final price / price changes / reputation" stats
+   were dropped, and price changes were never tracked in the first place
+   (`price_slider.drag_ended` wasn't connected).
+8. `BUY_QUANTITY`/`LOW_STOCK` were hardcoded in the view layer, violating the
+   project's literal rule that every tunable lives only in `SimConfig.gd` —
+   moved there, both `Game.gd` and `Town3D.gd` now reference `SimConfig.*`.
+9. The "drag to walk" hint tween never replayed after Reset/Play Again.
+10. Three modal-overlay builders (decision/boot/complete) duplicated the same
+    dim+panel scaffold, and the neighbor-shop repaint logic was duplicated
+    with fragile `get_child(1)` indexing in two places — both extracted into
+    shared helpers (`_build_modal_shell`, `_paint_neighbor`).
 
-**`scripts/world3d/Town3D.gd`** — the "Ravi" 3D label was built by a helper
-that unconditionally parented it to the town root, then the call site tried
-to re-parent it under `ravi_npc`. Godot does not allow adding a node that
-already has a parent, so the label never actually followed Ravi around —
-it likely explains the "Ravi" text you saw floating away from his character
-in the last screenshot. Fixed by making the label builder take an explicit
-parent and passing `ravi_npc` directly (no reparenting needed).
+## Knowingly skipped (with reasons)
 
-## Refactor (triggered by a real lint flag, not cosmetic)
+- **Cross-file duplication vs `scripts/Game.gd`** (story text, stylebox/button
+  helpers, palette constants, float-feedback tween): `Game.gd` is documented
+  as a legacy fallback slated for retirement once the 3D build reaches parity
+  — building a shared UI-kit module now duplicates effort against code that's
+  leaving, and touching Game.gd's still-shipping fallback blind (no Godot to
+  test) adds risk for a transitional file.
+- **Efficiency items** (per-frame `Label3D` text rewrite even when unchanged,
+  fresh mesh/material allocated per spawned customer instead of shared,
+  per-frame `Missions.get_current_mission()` poll): real but perf-only, and
+  the graybox meshes/materials are explicitly temporary (Phase 3D-2 swaps
+  them for real assets) — would likely be thrown away; deferred until
+  on-device profiling shows an actual problem.
+- **Hardcoded mission-id string branching** (`"long_queue"`, `"shop_next_door"`)
+  driving Ravi/expand availability: a real architectural point (a generic
+  "interactable" concept would be more robust) but Chapter 1's mission set is
+  fixed at 5 beats and isn't expected to be renamed — a bigger redesign than
+  is safe to do blind right now; worth revisiting in Phase 3D-3.
+- **`decision_active` redundant with `decision_overlay.visible`**, and the
+  **three-way decision-kind match statements** (per-kind data table would
+  consolidate them): both true but low-value/higher-risk simplifications
+  given no Godot to confirm no edge case was missed; deferred (YAGNI until a
+  4th decision kind is actually added).
 
-`gdlint` flagged `Town3D.gd` at 1070 lines (over its 1000-line guideline).
-Extracted the six stateless graybox mesh-builder functions (`_static_box`,
-`_visual_box`, `_label3d`, `_tree`, `_person`, `_tint_person`) into a new
-**`scripts/world3d/GrayboxKit.gd`** (`class_name GrayboxKit`, static
-functions, no game state/autoload references). This is also exactly the
-swap point Phase 3D-2 needs when replacing boxes with real low-poly assets
-(see `HUMAN_DECISIONS.md`) — one file to change, not scattered call sites.
-Town3D.gd is now 976 lines. All call sites updated; every one traced by
-hand against the extracted signatures (parent param added where the
-original called `add_child` on `self`).
+## Verification method (still no Godot binary available)
 
-Also fixed two `gdlint` "declaration order" flags (cosmetic, zero behavior
-change): `SaveManager.gd` (signals before the const), `Player3D.gd` (public
-var before private `_`-prefixed vars).
+`gdformat --check` on every touched file parses clean before and after every
+edit (12/14 files "would reformat" = style only, same count throughout —
+confirms no new parse errors introduced by any fix). `gdlint` confirms the
+file-length flag on `Town3D.gd` (1044 lines) persists after the dedup — the
+feature-parity additions (feedback form, decision stats) outweighed the
+dedup savings; accepted as reasonable for a single-scene script with clear
+section banners rather than risking a bigger, unverifiable split.
 
-## Also fixed (from the prior on-device screenshot report)
-
-Already pushed in the prior commit on this PR: the flat-color seam where the
-old 44x44 ground plane ended (enlarged to 200x200 + blended sky ground
-colors), and pulled the follow camera back for a wider establishing view.
-
-## FILES CHANGED
-
-- `scripts/world3d/GrayboxKit.gd` — NEW
-- `scripts/world3d/Town3D.gd` — extraction, bug fix, ordering fix, line-wrap cleanup
-- `scripts/world3d/Player3D.gd` — ordering fix only
-- `scripts/save/SaveManager.gd` — ordering fix only
-- `CLAUDE.md` — documents the gdtoolkit verification capability for future sessions
-
-## TEST OUTPUT
-
-```
-$ gdformat --check $(find scripts tests -name "*.gd")
-would reformat scripts/sim/Sim.gd
-would reformat scripts/sim/SimConfig.gd
-would reformat scripts/sim/GameState.gd
-would reformat scripts/mission/MissionData.gd
-would reformat scripts/mission/MissionManager.gd
-would reformat scripts/events/EventEngine.gd
-would reformat scripts/Game.gd
-would reformat scripts/world3d/Town3D.gd
-would reformat scripts/world3d/Player3D.gd
-would reformat scripts/Main.gd
-would reformat tests/BalanceSweep.gd
-would reformat tests/TestRunner.gd
-12 files would be reformatted, 2 files would be left unchanged.
-EXIT: 1
-```
-Exit 1 here means "some files aren't gdformat-styled" (cosmetic), NOT a parse
-failure — no file threw a parse error. That's the real signal: all 14 `.gd`
-files are syntactically valid GDScript. Remaining `gdlint` output is only
-line-length style warnings on lines I didn't touch (pre-existing in the
-original code drop) — not pursued, to avoid unrelated churn on approved-spec
-files.
-
-**Still not verified by execution:** whether the game actually runs/looks
-right on-device. This static pass narrows the risk window; it is not a
-substitute for the phone playtest.
+**Still not verified by execution.** This narrows the risk window
+considerably (a real freeze-the-game bug is now fixed before it ever reached
+a player) but the phone playtest is still the only thing that can confirm
+the game actually runs.
 
 ## OPEN QUESTIONS
 
-none — next real signal is Vikash re-testing PR #3 on-device.
+none — next real signal is Vikash re-testing on-device.

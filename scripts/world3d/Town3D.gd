@@ -10,10 +10,8 @@ extends Node3D
 enum Ctx { NONE, MANAGE, HIRE, EXPAND }
 
 const DAY_DURATION: float = 6.0
-const BUY_QUANTITY: int = 60
 const MAX_CUSTOMER_DOTS: int = 10
 const LOG_MAX: int = 4
-const LOW_STOCK: int = 18
 const INTERACT_DIST: float = 3.0
 
 # --- Palette (UI) ---
@@ -51,6 +49,11 @@ var log_lines: Array[String] = []
 var total_revenue: float = 0.0
 var stock_ordered: int = 0
 var ravi_hire_day: int = -1
+var price_changes: int = 0
+var submit_button: Button
+var q1_edit: LineEdit
+var q2_edit: LineEdit
+var q3_edit: LineEdit
 
 # Supplier cost display (today vs yesterday)
 var cost_today: float = SimConfig.PRODUCT_COST
@@ -125,7 +128,7 @@ func _process(delta: float) -> void:
 
 	_update_context_button()
 
-	if not running or chapter_done or decision_active:
+	if not running or chapter_done or decision_active or manage_panel.visible:
 		return
 	day_timer += delta
 	if day_timer >= DAY_DURATION:
@@ -312,12 +315,18 @@ func _build_ui() -> void:
 	hint_label.offset_right = 220
 	hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	ui.add_child(hint_label)
-	var ht := create_tween()
-	ht.tween_interval(8.0)
-	ht.tween_property(hint_label, "modulate:a", 0.0, 1.5)
+	_start_hint_fade()
 
 	_build_manage_panel()
 	_build_decision_overlay()
+
+
+## Fades hint_label out after a delay; replayable so a reset shows it again.
+func _start_hint_fade() -> void:
+	hint_label.modulate.a = 1.0
+	var ht := create_tween()
+	ht.tween_interval(8.0)
+	ht.tween_property(hint_label, "modulate:a", 0.0, 1.5)
 
 
 func _add_chip(parent: Control, caption: String, value: String, accent: Color) -> Label:
@@ -399,6 +408,7 @@ func _build_manage_panel() -> void:
 	price_slider.step = 1.0
 	price_slider.value = SimConfig.DEFAULT_PRICE
 	price_slider.value_changed.connect(_on_price_changed)
+	price_slider.drag_ended.connect(_on_price_drag_ended)
 	v.add_child(price_slider)
 
 	buy_button = Button.new()
@@ -425,24 +435,27 @@ func _build_manage_panel() -> void:
 	row.add_child(reset)
 
 
-func _build_decision_overlay() -> void:
-	decision_overlay = Control.new()
-	decision_overlay.visible = false
-	decision_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
-	ui.add_child(decision_overlay)
+## Shared full-screen dim + centered bordered-panel scaffold used by the
+## decision modal, boot choice, and chapter-complete screens. The caller
+## populates the returned vbox and owns the returned overlay's visibility
+## and lifecycle (each of the three has different show/hide/free timing).
+func _build_modal_shell(min_width: float, border_color: Color, dim_alpha: float) -> Dictionary:
+	var overlay := Control.new()
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ui.add_child(overlay)
 
 	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.65)
+	dim.color = Color(0, 0, 0, dim_alpha)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	decision_overlay.add_child(dim)
+	overlay.add_child(dim)
 
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	decision_overlay.add_child(center)
+	overlay.add_child(center)
 
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(600, 0)
-	panel.add_theme_stylebox_override("panel", _sb(PANEL, 18, 2, PANEL_HI))
+	panel.custom_minimum_size = Vector2(min_width, 0)
+	panel.add_theme_stylebox_override("panel", _sb(PANEL, 18, 2, border_color))
 	center.add_child(panel)
 
 	var margin := MarginContainer.new()
@@ -453,6 +466,15 @@ func _build_decision_overlay() -> void:
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 14)
 	margin.add_child(vbox)
+
+	return {"overlay": overlay, "vbox": vbox}
+
+
+func _build_decision_overlay() -> void:
+	var shell := _build_modal_shell(600, PANEL_HI, 0.65)
+	decision_overlay = shell.overlay
+	decision_overlay.visible = false
+	var vbox: VBoxContainer = shell.vbox
 
 	decision_title = Label.new()
 	decision_title.add_theme_font_size_override("font_size", 26)
@@ -497,23 +519,9 @@ func _begin_new_game() -> void:
 
 
 func _show_boot_choice() -> void:
-	var boot := Control.new()
-	boot.set_anchors_preset(Control.PRESET_FULL_RECT)
-	ui.add_child(boot)
-	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.75)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	boot.add_child(dim)
-	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	boot.add_child(center)
-	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(520, 0)
-	panel.add_theme_stylebox_override("panel", _sb(PANEL, 18, 2, ACCENT))
-	center.add_child(panel)
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 14)
-	panel.add_child(v)
+	var shell := _build_modal_shell(520, ACCENT, 0.75)
+	var boot: Control = shell.overlay
+	var v: VBoxContainer = shell.vbox
 	var t := Label.new()
 	t.text = "Welcome back to your shop"
 	t.add_theme_font_size_override("font_size", 26)
@@ -532,7 +540,13 @@ func _show_boot_choice() -> void:
 	v.add_child(newg)
 	cont.pressed.connect(func() -> void:
 		boot.queue_free()
-		SaveManager.load_game()
+		if not SaveManager.load_game():
+			# Corrupt or incompatible save file — fall back to a fresh game
+			# instead of leaving default state with no mission ever shown.
+			_begin_new_game()
+			return
+		if GameState.has_expanded_shop:
+			_apply_expansion_visual()
 		price_slider.value = GameState.current_price
 		cost_today = Sim.get_current_unit_cost()
 		cost_yesterday = cost_today
@@ -566,7 +580,7 @@ func _advance_day() -> void:
 	if drep != 0:
 		_float(("Reputation +%d" if drep > 0 else "Reputation %d") % drep,
 			REP_COL if drep > 0 else BAD, Vector2(360, 150))
-	if GameState.inventory <= LOW_STOCK and not chapter_done:
+	if GameState.inventory <= SimConfig.LOW_STOCK and not chapter_done:
 		_float("Low stock!", WARN, Vector2(560, 90))
 
 	_spawn_customers_3d(r)
@@ -589,7 +603,10 @@ func _spawn_customer_3d(served: bool, idx: int) -> void:
 	npc.position = SPAWN_LEFT if from_left else SPAWN_RIGHT
 	npc_root.add_child(npc)
 
-	var t := create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	# Bound to npc (not self) so Godot auto-kills this tween if npc is freed early
+	# (e.g. Reset game mid-animation) instead of it running on afterward and
+	# touching a freed instance.
+	var t := npc.create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	t.tween_interval(idx * (DAY_DURATION * 0.06))
 	var front := Vector3(DOOR_POS.x + randf_range(-0.6, 0.6), 0, 1.2)
 	t.tween_property(npc, "position", front, DAY_DURATION * 0.32)
@@ -618,7 +635,7 @@ func _screen_pos(world: Vector3) -> Vector2:
 # ===========================================================================
 
 func _update_context_button() -> void:
-	if chapter_done or decision_active:
+	if chapter_done or decision_active or manage_panel.visible:
 		context_button.visible = false
 		return
 	var pp: Vector3 = player.global_position
@@ -668,15 +685,23 @@ func _on_context_pressed() -> void:
 
 
 func _apply_expansion_visual() -> void:
+	_paint_neighbor("SOAP SHOP II", Color(1, 0.95, 0.8), Color(0.78, 0.55, 0.38))
+
+
+## Repaint the neighbor shop's sign and wall color (expanded vs FOR RENT).
+func _paint_neighbor(sign_text: String, sign_col: Color, wall_col: Color) -> void:
 	if neighbor_body == null:
 		return
-	neighbor_sign.text = "SOAP SHOP II"
-	neighbor_sign.modulate = Color(1, 0.95, 0.8)
+	neighbor_sign.text = sign_text
+	neighbor_sign.modulate = sign_col
 	var mesh := neighbor_body.get_child(1) as MeshInstance3D
 	if mesh != null and mesh.mesh is BoxMesh:
-		var mat := StandardMaterial3D.new()
-		mat.albedo_color = Color(0.78, 0.55, 0.38)
-		(mesh.mesh as BoxMesh).material = mat
+		var box := mesh.mesh as BoxMesh
+		var mat := box.material as StandardMaterial3D
+		if mat == null:
+			mat = StandardMaterial3D.new()
+			box.material = mat
+		mat.albedo_color = wall_col
 
 
 # ===========================================================================
@@ -695,19 +720,24 @@ func _on_price_changed(value: float) -> void:
 	_refresh_buy_button()
 
 
+func _on_price_drag_ended(value_changed: bool) -> void:
+	if value_changed:
+		price_changes += 1
+
+
 func _refresh_buy_button() -> void:
 	buy_button.text = "Buy %d stock - Rs%d/unit today (Rs%d yest.)" % [
-		BUY_QUANTITY, int(round(cost_today)), int(round(cost_yesterday))]
+		SimConfig.BUY_QUANTITY, int(round(cost_today)), int(round(cost_yesterday))]
 
 
 func _on_buy() -> void:
 	var unit_cost: float = Sim.get_current_unit_cost()
-	if not Sim.buy_inventory(BUY_QUANTITY):
+	if not Sim.buy_inventory(SimConfig.BUY_QUANTITY):
 		_float("Not enough cash", BAD, Vector2(360, 500))
 		return
-	stock_ordered += BUY_QUANTITY
-	_log("Bought %d soap at Rs %d/unit." % [BUY_QUANTITY, int(round(unit_cost))])
-	_float("+%d stock" % BUY_QUANTITY, STOCK_COL, Vector2(560, 90))
+	stock_ordered += SimConfig.BUY_QUANTITY
+	_log("Bought %d soap at Rs %d/unit." % [SimConfig.BUY_QUANTITY, int(round(unit_cost))])
+	_float("+%d stock" % SimConfig.BUY_QUANTITY, STOCK_COL, Vector2(560, 90))
 	_refresh_all()
 
 
@@ -738,6 +768,7 @@ func _show_next_decision() -> void:
 	if decision_queue.is_empty():
 		decision_active = false
 		decision_overlay.visible = false
+		_refresh_all()   # re-enables flow_button (disabled while decision_active)
 		return
 	decision_active = true
 	running = false
@@ -832,23 +863,9 @@ func _on_chapter_completed() -> void:
 
 
 func _build_complete_overlay() -> void:
-	complete_overlay = Control.new()
-	complete_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
-	ui.add_child(complete_overlay)
-	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.7)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	complete_overlay.add_child(dim)
-	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	complete_overlay.add_child(center)
-	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(620, 0)
-	panel.add_theme_stylebox_override("panel", _sb(PANEL, 18, 2, ACCENT))
-	center.add_child(panel)
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 14)
-	panel.add_child(v)
+	var shell := _build_modal_shell(620, ACCENT, 0.7)
+	complete_overlay = shell.overlay
+	var v: VBoxContainer = shell.vbox
 
 	var title := Label.new()
 	title.text = "CHAPTER 1 COMPLETE"
@@ -866,6 +883,15 @@ func _build_complete_overlay() -> void:
 	stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(stats)
 
+	var ravi_txt: String = ("day %d" % ravi_hire_day) if ravi_hire_day >= 0 else "not hired"
+	var decisions := Label.new()
+	decisions.text = "Final price: Rs %d   Price changes: %d\nRavi hired: %s   Reputation: %d" % [
+		int(GameState.current_price), price_changes, ravi_txt, int(round(GameState.reputation))]
+	decisions.add_theme_font_size_override("font_size", 15)
+	decisions.add_theme_color_override("font_color", MUTED)
+	decisions.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(decisions)
+
 	var story := Label.new()
 	story.text = _make_story()
 	story.add_theme_font_size_override("font_size", 18)
@@ -873,15 +899,61 @@ func _build_complete_overlay() -> void:
 	story.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	v.add_child(story)
 
+	var feedback_title := Label.new()
+	feedback_title.text = "YOUR OPINION MATTERS"
+	feedback_title.add_theme_font_size_override("font_size", 14)
+	feedback_title.add_theme_color_override("font_color", MUTED)
+	v.add_child(feedback_title)
+	q1_edit = _add_feedback_question(v, "What confused you?")
+	q2_edit = _add_feedback_question(v, "What did you enjoy the most?")
+	q3_edit = _add_feedback_question(v, "Would you continue building your business?")
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	v.add_child(row)
+	submit_button = Button.new()
+	submit_button.text = "Submit"
+	submit_button.custom_minimum_size = Vector2(0, 50)
+	submit_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_style_button(submit_button, ACCENT.darkened(0.1))
+	submit_button.pressed.connect(_on_submit_feedback)
+	row.add_child(submit_button)
 	var again := Button.new()
 	again.text = "Play Again"
-	again.custom_minimum_size = Vector2(0, 54)
-	_style_button(again, ACCENT.darkened(0.1))
+	again.custom_minimum_size = Vector2(160, 50)
+	_style_button(again, PANEL_HI)
 	again.pressed.connect(func() -> void:
 		complete_overlay.queue_free()
 		complete_overlay = null
 		_on_reset_pressed())
-	v.add_child(again)
+	row.add_child(again)
+
+
+func _add_feedback_question(parent: VBoxContainer, question: String) -> LineEdit:
+	var q := Label.new()
+	q.text = question
+	q.add_theme_font_size_override("font_size", 15)
+	q.add_theme_color_override("font_color", TEXT)
+	parent.add_child(q)
+	var e := LineEdit.new()
+	e.placeholder_text = "type here..."
+	parent.add_child(e)
+	return e
+
+
+func _on_submit_feedback() -> void:
+	if q1_edit == null:
+		return
+	var entry := "Q1 confused: %s\nQ2 enjoyed: %s\nQ3 continue: %s\n---\n" % [q1_edit.text, q2_edit.text, q3_edit.text]
+	var existing := ""
+	if FileAccess.file_exists("user://biztown_feedback.txt"):
+		existing = FileAccess.get_file_as_string("user://biztown_feedback.txt")
+	var f := FileAccess.open("user://biztown_feedback.txt", FileAccess.WRITE)
+	if f != null:
+		f.store_string(existing + entry)
+		f.close()
+	submit_button.text = "Thank you, founder!"
+	submit_button.disabled = true
 
 
 func _make_story() -> String:
@@ -913,9 +985,11 @@ func _on_reset_pressed() -> void:
 	chapter_done = false
 	running = false
 	day_timer = 0.0
+	_start_hint_fade()
 	total_revenue = 0.0
 	stock_ordered = 0
 	ravi_hire_day = -1
+	price_changes = 0
 	decision_queue.clear()
 	decision_active = false
 	decision_overlay.visible = false
@@ -925,13 +999,7 @@ func _on_reset_pressed() -> void:
 	log_label.text = ""
 	for c in npc_root.get_children():
 		c.queue_free()
-	neighbor_sign.text = "FOR RENT"
-	neighbor_sign.modulate = Color(0.85, 0.85, 0.85)
-	var mesh := neighbor_body.get_child(1) as MeshInstance3D
-	if mesh != null and mesh.mesh is BoxMesh:
-		var mat := StandardMaterial3D.new()
-		mat.albedo_color = Color(0.52, 0.53, 0.58)
-		(mesh.mesh as BoxMesh).material = mat
+	_paint_neighbor("FOR RENT", Color(0.85, 0.85, 0.85), Color(0.52, 0.53, 0.58))
 	SaveManager.delete_save()
 	GameState.reset()
 	Missions.start_chapter()
@@ -947,7 +1015,7 @@ func _refresh_all() -> void:
 	rep_value.text = str(int(round(GameState.reputation)))
 	stock_value.text = str(GameState.inventory)
 	stock_value.add_theme_color_override("font_color",
-		WARN if GameState.inventory <= LOW_STOCK else STOCK_COL)
+		WARN if GameState.inventory <= SimConfig.LOW_STOCK else STOCK_COL)
 	regulars_value.text = str(GameState.regular_count)
 	flow_button.text = "Pause days" if running else "Start days"
 	flow_button.disabled = chapter_done or decision_active
