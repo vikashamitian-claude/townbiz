@@ -9,12 +9,12 @@ const GRAVITY: float = 20.0
 const DRAG_RADIUS: float = 80.0
 const BOUND: float = 20.0
 
+var visual: Node3D
+
 var _drag_index: int = -1
 var _drag_origin: Vector2 = Vector2.ZERO
 var _mouse_down: bool = false
 var _move_input: Vector2 = Vector2.ZERO   # x = screen right, y = screen down
-
-var visual: Node3D
 
 
 func _ready() -> void:

@@ -2,10 +2,10 @@ extends Node
 ## BizTown — Living Business Build: save system. Autoloaded as "SaveManager".
 ## Autosaves after every day_ended. Versioned JSON at user://save_v1.json.
 
-const SAVE_PATH: String = "user://save_v1.json"
-
 signal saved
 signal loaded
+
+const SAVE_PATH: String = "user://save_v1.json"
 
 
 func _ready() -> void:

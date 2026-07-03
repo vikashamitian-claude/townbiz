@@ -7,6 +7,8 @@ extends Node3D
 ## Ravi in person to hire him, walk to the empty shop next door to expand.
 ## Customers arrive as 3D figures each day; turned-away ones leave red.
 
+enum Ctx { NONE, MANAGE, HIRE, EXPAND }
+
 const DAY_DURATION: float = 6.0
 const BUY_QUANTITY: int = 60
 const MAX_CUSTOMER_DOTS: int = 10
@@ -28,7 +30,6 @@ const GOOD := Color(0.40, 0.86, 0.52)
 const BAD := Color(0.92, 0.42, 0.42)
 const WARN := Color(0.96, 0.80, 0.36)
 const ACCENT := Color(0.45, 0.85, 0.6)
-const SKIN := Color(0.88, 0.74, 0.58)
 
 # --- World points ---
 const COUNTER_POS := Vector3(0, 0, -2.5)     # in front of the shop door
@@ -94,8 +95,6 @@ var decision_yes: Button
 var decision_no: Button
 var complete_overlay: Control
 var hint_label: Label
-
-enum Ctx { NONE, MANAGE, HIRE, EXPAND }
 var context_action: int = Ctx.NONE
 
 
@@ -167,40 +166,43 @@ func _build_world() -> void:
 	add_child(cam)
 
 	# Ground (oversized well past the walkable BOUND so its edge is never in frame)
-	_static_box(Vector3(0, -0.25, 0), Vector3(200, 0.5, 200), Color(0.45, 0.62, 0.38))
+	GrayboxKit.static_box(self, Vector3(0, -0.25, 0), Vector3(200, 0.5, 200), Color(0.45, 0.62, 0.38))
 	# Road (visual strip, no collider needed)
-	_visual_box(Vector3(0, 0.02, 1.5), Vector3(40, 0.04, 3.2), Color(0.32, 0.33, 0.36))
+	GrayboxKit.visual_box(self, Vector3(0, 0.02, 1.5), Vector3(40, 0.04, 3.2), Color(0.32, 0.33, 0.36))
 
 	# The soap shop
-	shop_body = _static_box(Vector3(0, 1.5, -6), Vector3(6, 3, 4), Color(0.78, 0.55, 0.38))
-	_visual_box(Vector3(1.2, 1.0, -3.95), Vector3(1.1, 2.0, 0.12), Color(0.30, 0.22, 0.16))  # door
-	_visual_box(Vector3(-1.2, 1.7, -3.95), Vector3(1.4, 1.0, 0.12), Color(0.55, 0.78, 0.95)) # window
-	_label3d("SOAP SHOP", Vector3(0, 3.6, -4), 96, Color(1, 0.95, 0.8))
+	shop_body = GrayboxKit.static_box(
+		self, Vector3(0, 1.5, -6), Vector3(6, 3, 4), Color(0.78, 0.55, 0.38))
+	GrayboxKit.visual_box(  # door
+		self, Vector3(1.2, 1.0, -3.95), Vector3(1.1, 2.0, 0.12), Color(0.30, 0.22, 0.16))
+	GrayboxKit.visual_box(  # window
+		self, Vector3(-1.2, 1.7, -3.95), Vector3(1.4, 1.0, 0.12), Color(0.55, 0.78, 0.95))
+	GrayboxKit.label3d(self, "SOAP SHOP", Vector3(0, 3.6, -4), 96, Color(1, 0.95, 0.8))
 	# Counter (in front, under an awning)
-	_visual_box(Vector3(0, 0.5, -2.6), Vector3(2.6, 1.0, 0.7), Color(0.42, 0.32, 0.24))
+	GrayboxKit.visual_box(self, Vector3(0, 0.5, -2.6), Vector3(2.6, 1.0, 0.7), Color(0.42, 0.32, 0.24))
 
 	# The shop next door (expansion target)
-	neighbor_body = _static_box(Vector3(8, 1.3, -6), Vector3(5, 2.6, 4), Color(0.52, 0.53, 0.58))
-	neighbor_sign = _label3d("FOR RENT", Vector3(8, 3.1, -4), 72, Color(0.85, 0.85, 0.85))
+	neighbor_body = GrayboxKit.static_box(
+		self, Vector3(8, 1.3, -6), Vector3(5, 2.6, 4), Color(0.52, 0.53, 0.58))
+	neighbor_sign = GrayboxKit.label3d(
+		self, "FOR RENT", Vector3(8, 3.1, -4), 72, Color(0.85, 0.85, 0.85))
 
 	# Filler houses (set dressing)
-	_static_box(Vector3(-9, 1.4, -7), Vector3(4, 2.8, 3.5), Color(0.62, 0.50, 0.60))
-	_static_box(Vector3(-15, 1.2, -5), Vector3(3.5, 2.4, 3), Color(0.50, 0.60, 0.68))
-	_static_box(Vector3(14, 1.3, -6.5), Vector3(4, 2.6, 3.5), Color(0.68, 0.60, 0.45))
-	_static_box(Vector3(-12, 1.2, 6.5), Vector3(4, 2.4, 3), Color(0.58, 0.55, 0.50))
-	_static_box(Vector3(11, 1.3, 7), Vector3(4.5, 2.6, 3.2), Color(0.52, 0.62, 0.55))
+	GrayboxKit.static_box(self, Vector3(-9, 1.4, -7), Vector3(4, 2.8, 3.5), Color(0.62, 0.50, 0.60))
+	GrayboxKit.static_box(self, Vector3(-15, 1.2, -5), Vector3(3.5, 2.4, 3), Color(0.50, 0.60, 0.68))
+	GrayboxKit.static_box(self, Vector3(14, 1.3, -6.5), Vector3(4, 2.6, 3.5), Color(0.68, 0.60, 0.45))
+	GrayboxKit.static_box(self, Vector3(-12, 1.2, 6.5), Vector3(4, 2.4, 3), Color(0.58, 0.55, 0.50))
+	GrayboxKit.static_box(self, Vector3(11, 1.3, 7), Vector3(4.5, 2.6, 3.2), Color(0.52, 0.62, 0.55))
 	# Trees
 	for p in [Vector3(-5, 0, 5), Vector3(5, 0, 6), Vector3(16, 0, 2.8), Vector3(-17, 0, 3.2)]:
-		_tree(p)
+		GrayboxKit.tree(self, p)
 
 	# Ravi (idle NPC; shown when relevant)
-	ravi_npc = _person(Color(0.35, 0.48, 0.78))
+	ravi_npc = GrayboxKit.person(Color(0.35, 0.48, 0.78))
 	ravi_npc.position = RAVI_WAIT_POS
 	ravi_npc.visible = false
 	add_child(ravi_npc)
-	ravi_label = _label3d("Ravi", Vector3.ZERO, 48, REP_COL)
-	ravi_label.position = Vector3(0, 2.1, 0)
-	ravi_npc.add_child(ravi_label)
+	ravi_label = GrayboxKit.label3d(ravi_npc, "Ravi", Vector3(0, 2.1, 0), 48, REP_COL)
 
 	npc_root = Node3D.new()
 	add_child(npc_root)
@@ -208,102 +210,6 @@ func _build_world() -> void:
 	player = PlayerScene.new()
 	player.position = Vector3(0, 0.1, 4)
 	add_child(player)
-
-
-func _static_box(pos: Vector3, size: Vector3, color: Color) -> Node3D:
-	var body := StaticBody3D.new()
-	body.position = pos
-	var col := CollisionShape3D.new()
-	var shape := BoxShape3D.new()
-	shape.size = size
-	col.shape = shape
-	body.add_child(col)
-	var mesh := MeshInstance3D.new()
-	var box := BoxMesh.new()
-	box.size = size
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	box.material = mat
-	mesh.mesh = box
-	body.add_child(mesh)
-	add_child(body)
-	return body
-
-
-func _visual_box(pos: Vector3, size: Vector3, color: Color) -> MeshInstance3D:
-	var mesh := MeshInstance3D.new()
-	var box := BoxMesh.new()
-	box.size = size
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	box.material = mat
-	mesh.mesh = box
-	mesh.position = pos
-	add_child(mesh)
-	return mesh
-
-
-func _label3d(text: String, pos: Vector3, size: int, color: Color) -> Label3D:
-	var l := Label3D.new()
-	l.text = text
-	l.font_size = size
-	l.modulate = color
-	l.position = pos
-	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	l.outline_size = 8
-	add_child(l)
-	return l
-
-
-func _tree(pos: Vector3) -> void:
-	var trunk := _visual_box(pos + Vector3(0, 0.6, 0), Vector3(0.35, 1.2, 0.35), Color(0.45, 0.32, 0.22))
-	var crown := MeshInstance3D.new()
-	var s := SphereMesh.new()
-	s.radius = 0.9
-	s.height = 1.8
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.30, 0.55, 0.30)
-	s.material = mat
-	crown.mesh = s
-	crown.position = pos + Vector3(0, 1.9, 0)
-	add_child(crown)
-	trunk.visible = true
-
-
-## A simple graybox person (capsule body + sphere head), used for customers & Ravi.
-func _person(body_color: Color) -> Node3D:
-	var root := Node3D.new()
-	var body := MeshInstance3D.new()
-	var cap := CapsuleMesh.new()
-	cap.radius = 0.32
-	cap.height = 1.0
-	var bmat := StandardMaterial3D.new()
-	bmat.albedo_color = body_color
-	cap.material = bmat
-	body.mesh = cap
-	body.position.y = 0.6
-	body.name = "Body"
-	root.add_child(body)
-	var head := MeshInstance3D.new()
-	var sph := SphereMesh.new()
-	sph.radius = 0.2
-	sph.height = 0.4
-	var hmat := StandardMaterial3D.new()
-	hmat.albedo_color = SKIN
-	sph.material = hmat
-	head.mesh = sph
-	head.position.y = 1.3
-	head.name = "Head"
-	root.add_child(head)
-	return root
-
-
-func _tint_person(p: Node3D, color: Color) -> void:
-	var body := p.get_node_or_null("Body") as MeshInstance3D
-	if body != null and body.mesh is CapsuleMesh:
-		var mat := StandardMaterial3D.new()
-		mat.albedo_color = color
-		(body.mesh as CapsuleMesh).material = mat
 
 
 # ===========================================================================
@@ -678,7 +584,7 @@ func _spawn_customers_3d(result: Dictionary) -> void:
 
 
 func _spawn_customer_3d(served: bool, idx: int) -> void:
-	var npc := _person(Color(0.55, 0.62, 0.78))
+	var npc := GrayboxKit.person(Color(0.55, 0.62, 0.78))
 	var from_left: bool = (idx % 2) == 0
 	npc.position = SPAWN_LEFT if from_left else SPAWN_RIGHT
 	npc_root.add_child(npc)
@@ -694,7 +600,7 @@ func _spawn_customer_3d(served: bool, idx: int) -> void:
 		t.tween_property(npc, "scale", Vector3(0.05, 0.05, 0.05), 0.25)
 	else:
 		t.tween_callback(func() -> void:
-			_tint_person(npc, BAD)
+			GrayboxKit.tint_person(npc, BAD)
 			_float("left!", BAD, _screen_pos(npc.position)))
 		var exit := SPAWN_LEFT if not from_left else SPAWN_RIGHT
 		t.tween_property(npc, "position", exit, DAY_DURATION * 0.4)
