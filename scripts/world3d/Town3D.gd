@@ -120,7 +120,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	# Follow camera (fixed angle, smooth)
-	var target: Vector3 = player.global_position + Vector3(0, 11, 9)
+	var target: Vector3 = player.global_position + Vector3(0, 13, 15)
 	cam.global_position = cam.global_position.lerp(target, minf(6.0 * delta, 1.0))
 	cam.look_at(player.global_position + Vector3(0, 1, 0))
 
@@ -146,8 +146,8 @@ func _build_world() -> void:
 	var sky_mat := ProceduralSkyMaterial.new()
 	sky_mat.sky_top_color = Color(0.35, 0.55, 0.85)
 	sky_mat.sky_horizon_color = Color(0.78, 0.82, 0.88)
-	sky_mat.ground_bottom_color = Color(0.30, 0.35, 0.30)
-	sky_mat.ground_horizon_color = Color(0.62, 0.66, 0.62)
+	sky_mat.ground_bottom_color = Color(0.40, 0.56, 0.35)
+	sky_mat.ground_horizon_color = Color(0.60, 0.72, 0.58)
 	sky.sky_material = sky_mat
 	e.sky = sky
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
@@ -162,12 +162,12 @@ func _build_world() -> void:
 	add_child(sun)
 
 	cam = Camera3D.new()
-	cam.position = Vector3(0, 11, 13)
-	cam.fov = 55.0
+	cam.position = Vector3(0, 13, 15)
+	cam.fov = 60.0
 	add_child(cam)
 
-	# Ground
-	_static_box(Vector3(0, -0.25, 0), Vector3(44, 0.5, 44), Color(0.45, 0.62, 0.38))
+	# Ground (oversized well past the walkable BOUND so its edge is never in frame)
+	_static_box(Vector3(0, -0.25, 0), Vector3(200, 0.5, 200), Color(0.45, 0.62, 0.38))
 	# Road (visual strip, no collider needed)
 	_visual_box(Vector3(0, 0.02, 1.5), Vector3(40, 0.04, 3.2), Color(0.32, 0.33, 0.36))
 
