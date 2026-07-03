@@ -23,8 +23,10 @@ config/icon="res://icon.svg"
 [autoload]
 
 GameState="*res://scripts/sim/GameState.gd"
+Events="*res://scripts/events/EventEngine.gd"
 Sim="*res://scripts/sim/Sim.gd"
-MissionManager="*res://scripts/mission/MissionManager.gd"
+Missions="*res://scripts/mission/MissionManager.gd"
+SaveManager="*res://scripts/save/SaveManager.gd"
 
 [display]
 
