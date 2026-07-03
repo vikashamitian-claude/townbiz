@@ -22,17 +22,40 @@ Status: **Complete**
 
 ## Sprint 1 - Stabilization
 
-Status: **Blocked at Human Approval Gate**
+Status: **Superseded by the Living Business build below**
 
-Validation note: Godot was located at `C:\Users\pglra\godot_tmp\Godot_v4.7-stable_win64.exe`.
-`Game.tscn` completed headless GUI validation with exit code 0. The console binary crashes while opening `user://logs`, so console log capture remains an environment/tooling issue.
+Sprint 1 Tasks 3, 4, and 6 (mission progression stability, Chapter 1 alignment,
+save/load) are cleared by `BIZTOWN_BUILD_SPEC.md`, approved by Vikash. Task 5
+(Android export) remains gated — not started.
 
-1. [x] Run Godot headless scene/script validation. **Complete: no confirmed project runtime errors from `Game.tscn` GUI headless run.**
-2. [x] Fix confirmed runtime errors. **Complete: no confirmed project runtime errors to fix.**
-3. [ ] Stabilize mission progression events. *(Human approval required - gameplay; awaiting approval before work starts)*
-4. [ ] Align Chapter 1 mission flow with `PROTOTYPE_SPEC.md`. *(Human approval required - gameplay)*
-5. [ ] Add Android export preset and device-readiness checks. *(Human approval required - release)*
-6. [ ] Add save/load system. *(Human approval required - save system)*
+## Sprint L1-L5 - "Living Business" Chapter 1 rebuild
+
+Status: **Code complete, execution verification BLOCKED (no Godot binary in the
+build session's sandbox — see `.agent_reports/claude_latest.md`)**
+
+Governed by `BIZTOWN_BUILD_SPEC.md` (wins over any older sprint doc it conflicts with).
+
+1. [x] **Sprint L1-A/B** — Signal redesign (mission logic driven only by
+   `day_ended`, `inventory_purchased`, `ravi_hired`, `shop_expanded`,
+   `month_ended` — never generic `changed`), demand noise, day events,
+   supplier cost drift, rent/expansion real stakes. Engine: `scripts/sim/*.gd`,
+   `scripts/events/EventEngine.gd`.
+2. [x] **Sprint L2** — Living customers (regulars, credit requests, bulk
+   orders) + reworked 5-beat Chapter 1 missions. `scripts/mission/*.gd`.
+3. [x] **Sprint L3** — Save/load (`scripts/save/SaveManager.gd`) + `Game.gd`
+   UI hooks (demand range hint, today/yesterday supplier cost, telegraph
+   banner, credit/bulk/lender decision modals, month-end summary, regulars
+   HUD chip, Continue/New Game boot choice).
+4. [ ] **Sprint L4** — Balance sweep. Harness written (`tests/BalanceSweep.gd`
+   + `.tscn`), NOT yet run — needs a real Godot binary. Target: ~70% survive
+   Month-End without the lender; expansion affordable day 40-55.
+5. [ ] **Human playtest gate** — blocked behind Stage 2/4 test execution above.
+
+**To unblock:** run `godot --headless --path . res://tests/TestRunner.tscn`
+and `godot --headless --path . res://tests/BalanceSweep.tscn` (see README) and
+report the output, or make a Godot binary available in the dev session.
+
+Android export stays gated regardless of the above.
 
 ## Backlog
 
@@ -40,3 +63,5 @@ Validation note: Godot was located at `C:\Users\pglra\godot_tmp\Godot_v4.7-stabl
 - Inventory
 - Warehouse
 - Factory
+- Multi-product, multi-business, ranks, multiplayer — explicitly out of scope
+  for Chapter 1 (see `BIZTOWN_BUILD_SPEC.md`)

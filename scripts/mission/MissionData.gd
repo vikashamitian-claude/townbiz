@@ -1,66 +1,53 @@
 class_name MissionData
-## BizTown — Sprint 2: Chapter 1 missions as plain DATA.
-## The Mission Engine only READS this list. To add or change a mission, edit here —
-## no code changes needed. (Chapter 1 only: "Save My First Shop".)
-##
-## Each mission:
-##   id          unique key
-##   title       short name
-##   description the situation (felt)
-##   objective   what to do (shown to the player)
-##   condition   { type, value } — checked against GameState (see MissionManager)
-##   reward      { cash?, reputation?, unlock?, message? } — all optional
-##   next        id of the following mission ("" = end of chapter)
-##
-## Supported condition types:
-##   cash_at_least, inventory_at_most, inventory_at_least, reputation_at_least,
-##   ravi_hired, shop_expanded, day_at_least, customers_served_at_least
+## BizTown — Living Business Build: missions as plain data.
+## Condition types understood by MissionManager:
+##   customers_served_total {value}    — lifetime served ≥ value
+##   inventory_at_least {value}        — current stock ≥ value
+##   ravi_hired {}                     — Ravi on payroll
+##   cash_at_least_on_day {day,value}  — on day `day`, cash ≥ value (checked at day_ended)
+##   shop_expanded {}                  — expansion bought (costs real money now)
+## `check_on`: which explicit Sim events may complete this mission.
 
 static func chapter_1() -> Array:
 	return [
 		{
 			"id": "opening_day",
 			"title": "Opening Day",
-			"description": "Nobody knows your shop yet. Open the doors and make your first sales.",
-			"objective": "Set your price and serve your first 20 customers.",
-			"condition": { "type": "customers_served_at_least", "value": 20 },
-			"reward": { "message": "Your shop is officially open for business!" },
-			"next": "running_out_of_stock",
+			"intro": "Your shop is stocked with 40 soaps. Set a price and open the shutter. The town doesn't know you yet — and no two days are ever the same.",
+			"conditions": [ { "type": "customers_served_total", "value": 20 } ],
+			"check_on": ["day_ended"],
+			"debrief": "Twenty customers found your shop. Some days the street is full, some days it rains — that's business.",
 		},
 		{
-			"id": "running_out_of_stock",
+			"id": "restock",
 			"title": "Running Out of Stock",
-			"description": "Soap is flying off the shelf and you are nearly empty.",
-			"objective": "Restock to at least 60 units before customers leave.",
-			"condition": { "type": "inventory_at_least", "value": 60 },
-			"reward": { "message": "Shelves full again. Customers stay happy." },
-			"next": "the_long_queue",
+			"intro": "Shelves are emptying. The supplier's price moves every day — watch it, and buy back up to 60 units when the moment feels right.",
+			"conditions": [ { "type": "inventory_at_least", "value": 60 } ],
+			"check_on": ["inventory_purchased"],
+			"debrief": "Stock is money on a shelf. Buy cheap, and it works for you. Buy dear, and it eats your margin.",
 		},
 		{
-			"id": "the_long_queue",
+			"id": "long_queue",
 			"title": "The Long Queue",
-			"description": "There are more customers than you can serve alone.",
-			"objective": "Hire Ravi to handle the crowd.",
-			"condition": { "type": "ravi_hired", "value": true },
-			"reward": { "reputation": 5.0, "message": "Ravi joins the shop. It now runs beyond just you." },
-			"next": "month_end",
+			"intro": "You can only serve 25 people a day alone — and every person turned away tells two friends. Ravi is looking for work at ₹100/day.",
+			"conditions": [ { "type": "ravi_hired" } ],
+			"check_on": ["ravi_hired"],
+			"debrief": "Ravi doubles your hands. His wage now leaves your pocket every single day — make him worth it.",
 		},
 		{
 			"id": "month_end",
 			"title": "Month-End",
-			"description": "Rent and wages are due. Can your shop survive its first month?",
-			"objective": "Keep trading until Month-End (day %d)." % SimConfig.MONTH_LENGTH_DAYS,
-			"condition": { "type": "day_at_least", "value": SimConfig.MONTH_LENGTH_DAYS },
-			"reward": { "message": "You survived your first month in business." },
-			"next": "the_shop_next_door",
+			"intro": "Day 30 is coming. ₹3,000 rent leaves your drawer whether you sold well or not. Reach month-end with the rent paid and your head above water.",
+			"conditions": [ { "type": "cash_at_least_on_day", "day": 30, "value": 0.0 } ],
+			"check_on": ["day_ended", "month_ended"],
+			"debrief": "Rent paid, doors open. Most shops don't survive their first month-end. Yours did.",
 		},
 		{
-			"id": "the_shop_next_door",
+			"id": "shop_next_door",
 			"title": "The Shop Next Door",
-			"description": "The shop next door is available. Doubling your space takes real money.",
-			"objective": "Make the call: expand into the shop next door.",
-			"condition": { "type": "shop_expanded", "value": true },
-			"reward": { "unlock": "bigger_shop", "message": "You built your first successful business!" },
-			"next": "",
+			"intro": "The shop beside yours has closed down. The landlord wants ₹8,000 — real money, from your drawer — to knock the wall through. Bigger shop, bigger bills.",
+			"conditions": [ { "type": "shop_expanded" } ],
+			"check_on": ["shop_expanded"],
+			"debrief": "You put your own profit back into the business. That's the difference between a shopkeeper and a businessman. Chapter 1 complete.",
 		},
 	]

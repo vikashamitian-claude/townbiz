@@ -1,9 +1,8 @@
 extends Control
-## BizTown — Sprint 4: Gameplay Feel Pass (presentation only).
+## BizTown — Chapter 1 "Living Business" Build: gameplay UI (functional, not pretty).
 ##
-## Goal: a brand-new player understands Chapter 1 in two minutes without explanation.
-## Everything here is presentation built from Godot Controls + code styles — NO art assets,
-## and NO changes to the Simulation Engine, Mission Engine, config, or mission data.
+## Everything here is presentation built from Godot Controls + code styles — NO art assets.
+## Wires the UI to the Living Business engine (Sim / Events / Missions / SaveManager).
 
 const DAY_DURATION: float = 2.7
 const BUY_QUANTITY: int = 60
@@ -21,6 +20,7 @@ const CASH_COL := Color(1.0, 0.82, 0.34)
 const REP_COL := Color(0.48, 0.72, 1.0)
 const STOCK_COL := Color(1.0, 0.62, 0.34)
 const DAY_COL := Color(0.82, 0.88, 1.0)
+const REGULARS_COL := Color(0.66, 0.86, 0.56)
 const GOOD := Color(0.40, 0.86, 0.52)
 const BAD := Color(0.92, 0.42, 0.42)
 const WARN := Color(0.96, 0.80, 0.36)
@@ -45,11 +45,29 @@ var q1_edit: LineEdit
 var q2_edit: LineEdit
 var q3_edit: LineEdit
 
+# Supplier cost — today's vs yesterday's (Buy screen must show both).
+var cost_today: float = SimConfig.PRODUCT_COST
+var cost_yesterday: float = SimConfig.PRODUCT_COST
+
+# Decision modal queue (credit / bulk / lender choices).
+var decision_queue: Array = []
+var decision_active: bool = false
+var current_decision: Dictionary = {}
+var decision_overlay: Control
+var decision_title: Label
+var decision_body: Label
+var decision_yes: Button
+var decision_no: Button
+
+var telegraph_banner: PanelContainer
+var telegraph_label: Label
+
 # HUD value labels (built in code)
 var day_value: Label
 var cash_value: Label
 var rep_value: Label
 var stock_value: Label
+var regulars_value: Label
 
 @onready var hud: HBoxContainer = $HUD
 @onready var mission_card: PanelContainer = $MissionCard
@@ -78,10 +96,17 @@ var stock_value: Label
 func _ready() -> void:
 	_style_everything()
 	_build_hud()
+	_build_telegraph_banner()
+	_build_decision_overlay()
 
-	MissionManager.mission_started.connect(_on_mission_started)
-	MissionManager.mission_completed.connect(_on_mission_completed)
-	MissionManager.chapter_completed.connect(_on_chapter_completed)
+	Missions.mission_started.connect(_on_mission_started)
+	Missions.mission_completed.connect(_on_mission_completed)
+	Missions.chapter_completed.connect(_on_chapter_completed)
+	Sim.month_ended.connect(_on_month_ended)
+	Events.event_telegraphed.connect(_on_event_telegraphed)
+	Events.credit_requested.connect(_on_credit_requested)
+	Events.bulk_offered.connect(_on_bulk_offered)
+	Events.lender_offered.connect(_on_lender_offered)
 
 	price_slider.min_value = SimConfig.PRICE_MIN
 	price_slider.max_value = SimConfig.PRICE_MAX
@@ -102,11 +127,10 @@ func _ready() -> void:
 	_clear_log()
 	world_home = world_area.position
 
-	MissionManager.start_chapter()
-	GameState.current_price = price_slider.value
-	_on_price_changed(price_slider.value)
-	_refresh_hud()
-	_update_buttons()
+	if SaveManager.has_save():
+		_show_boot_choice()
+	else:
+		_begin_new_game()
 
 
 func _process(delta: float) -> void:
@@ -119,7 +143,96 @@ func _process(delta: float) -> void:
 
 
 # ===========================================================================
-#  STYLING (Task 1, 6 — looks like a studio prototype, no art)
+#  BOOT — Continue / New Game (Sprint L3)
+# ===========================================================================
+
+func _begin_new_game() -> void:
+	Missions.start_chapter()
+	GameState.current_price = price_slider.value
+	cost_today = Sim.get_current_unit_cost()
+	cost_yesterday = cost_today
+	_on_price_changed(price_slider.value)
+	_refresh_hud()
+	_update_buttons()
+
+
+func _sync_after_load() -> void:
+	price_slider.value = GameState.current_price
+	cost_today = Sim.get_current_unit_cost()
+	cost_yesterday = cost_today
+	_on_price_changed(GameState.current_price)
+	_refresh_hud()
+	_update_buttons()
+
+
+func _show_boot_choice() -> void:
+	var boot := Control.new()
+	boot.set_anchors_preset(Control.PRESET_FULL_RECT)
+	boot.z_index = 200
+	add_child(boot)
+
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.75)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	boot.add_child(dim)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	boot.add_child(center)
+
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(560, 0)
+	panel.add_theme_stylebox_override("panel", _sb(PANEL, 18, 2, ACCENT))
+	center.add_child(panel)
+
+	var margin := MarginContainer.new()
+	for side in ["left", "top", "right", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 28)
+	panel.add_child(margin)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 14)
+	margin.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "Welcome back"
+	title.add_theme_font_size_override("font_size", 30)
+	title.add_theme_color_override("font_color", TEXT)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+
+	var sub := Label.new()
+	sub.text = "You have a shop in progress."
+	sub.add_theme_color_override("font_color", MUTED)
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(sub)
+
+	var continue_btn := Button.new()
+	continue_btn.text = "Continue"
+	continue_btn.custom_minimum_size = Vector2(0, 50)
+	_style_button(continue_btn, ACCENT.darkened(0.1))
+	vbox.add_child(continue_btn)
+
+	var new_btn := Button.new()
+	new_btn.text = "New Game"
+	new_btn.custom_minimum_size = Vector2(0, 50)
+	_style_button(new_btn, PANEL_HI)
+	vbox.add_child(new_btn)
+
+	continue_btn.pressed.connect(func() -> void:
+		boot.queue_free()
+		SaveManager.load_game()
+		_sync_after_load()
+	)
+	new_btn.pressed.connect(func() -> void:
+		boot.queue_free()
+		SaveManager.delete_save()
+		_begin_new_game()
+	)
+
+
+# ===========================================================================
+#  STYLING (looks like a studio prototype, no art)
 # ===========================================================================
 
 func _style_everything() -> void:
@@ -177,6 +290,7 @@ func _build_hud() -> void:
 	cash_value = _add_chip("CASH", "Rs 0", CASH_COL)
 	rep_value = _add_chip("REPUTATION", "0", REP_COL)
 	stock_value = _add_chip("STOCK", "0", STOCK_COL)
+	regulars_value = _add_chip("REGULARS", "0", REGULARS_COL)
 
 
 func _add_chip(caption: String, value: String, accent: Color) -> Label:
@@ -202,23 +316,106 @@ func _add_chip(caption: String, value: String, accent: Color) -> Label:
 	return val
 
 
+## Evening-news-style banner for Events.event_telegraphed (Fairness law: warn a day ahead).
+func _build_telegraph_banner() -> void:
+	telegraph_banner = PanelContainer.new()
+	telegraph_banner.visible = false
+	telegraph_banner.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	telegraph_banner.offset_left = 16.0
+	telegraph_banner.offset_right = -16.0
+	telegraph_banner.offset_top = 258.0
+	telegraph_banner.offset_bottom = 300.0
+	telegraph_banner.z_index = 60
+	telegraph_banner.add_theme_stylebox_override("panel", _sb(WARN.darkened(0.55), 10, 2, WARN))
+	add_child(telegraph_banner)
+	var m := MarginContainer.new()
+	m.add_theme_constant_override("margin_left", 14)
+	m.add_theme_constant_override("margin_top", 6)
+	m.add_theme_constant_override("margin_right", 14)
+	m.add_theme_constant_override("margin_bottom", 6)
+	telegraph_banner.add_child(m)
+	telegraph_label = Label.new()
+	telegraph_label.add_theme_color_override("font_color", WARN)
+	telegraph_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	m.add_child(telegraph_label)
+
+
+## One reusable modal for credit / bulk / lender choices (Sprint L3).
+func _build_decision_overlay() -> void:
+	decision_overlay = Control.new()
+	decision_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	decision_overlay.z_index = 150
+	decision_overlay.visible = false
+	add_child(decision_overlay)
+
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.65)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	decision_overlay.add_child(dim)
+
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	decision_overlay.add_child(center)
+
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(600, 0)
+	panel.add_theme_stylebox_override("panel", _sb(PANEL, 18, 2, PANEL_HI))
+	center.add_child(panel)
+
+	var margin := MarginContainer.new()
+	for side in ["left", "top", "right", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 26)
+	panel.add_child(margin)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 14)
+	margin.add_child(vbox)
+
+	decision_title = Label.new()
+	decision_title.add_theme_font_size_override("font_size", 26)
+	decision_title.add_theme_color_override("font_color", TEXT)
+	vbox.add_child(decision_title)
+
+	decision_body = Label.new()
+	decision_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	decision_body.add_theme_color_override("font_color", MUTED)
+	vbox.add_child(decision_body)
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	vbox.add_child(row)
+
+	decision_yes = Button.new()
+	decision_yes.custom_minimum_size = Vector2(0, 50)
+	decision_yes.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_style_button(decision_yes, ACCENT.darkened(0.1))
+	row.add_child(decision_yes)
+
+	decision_no = Button.new()
+	decision_no.custom_minimum_size = Vector2(0, 50)
+	decision_no.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_style_button(decision_no, PANEL_HI)
+	row.add_child(decision_no)
+
+	decision_yes.pressed.connect(_on_decision_yes_pressed)
+	decision_no.pressed.connect(_on_decision_no_pressed)
+
+
 # ===========================================================================
 #  TIME / WORLD
 # ===========================================================================
 
 func _advance_day() -> void:
+	telegraph_banner.visible = false
+	cost_yesterday = cost_today
+
 	var rep_before: float = GameState.reputation
 	var r: Dictionary = Sim.run_day()
+	cost_today = Sim.get_current_unit_cost()
 	var drep: int = int(round(GameState.reputation - rep_before))
 	total_revenue += r.revenue
 
 	_diary_day(r)
-
-	if GameState.day % SimConfig.MONTH_LENGTH_DAYS == 0:
-		var rent: float = Sim.apply_monthly_costs()
-		_diary("Month-end. Paid Rs %d in rent." % int(rent))
-		_float("Rent -Rs %d" % int(rent), BAD, Vector2(360, 330))
-		_shake(7.0)
 
 	if drep > 0:
 		_float("Reputation +%d" % drep, REP_COL, rep_value.global_position + Vector2(0, 30))
@@ -234,7 +431,7 @@ func _advance_day() -> void:
 
 
 func _spawn_customers(result: Dictionary) -> void:
-	var demand: int = result.demand
+	var demand: int = int(result.served) + int(result.lost)
 	if demand <= 0:
 		return
 	var total: int = mini(demand, MAX_CUSTOMER_DOTS)
@@ -287,7 +484,7 @@ func _customer_leave(person: Control) -> void:
 
 
 # ===========================================================================
-#  FLOATING FEEDBACK (Task 3) + SHAKE / CONFETTI (Task 5, 8)
+#  FLOATING FEEDBACK + SHAKE / CONFETTI
 # ===========================================================================
 
 func _float(text: String, color: Color, pos: Vector2) -> void:
@@ -340,23 +537,26 @@ func _confetti() -> void:
 
 func _on_price_changed(value: float) -> void:
 	GameState.current_price = value
-	var d: float = Sim.calculate_demand(value, GameState.reputation)
-	var profit: float = Sim.calculate_daily_profit(value, SimConfig.PRODUCT_COST, GameState.reputation, GameState.inventory)
-	price_label.text = "Price Rs %d     ~%d customers/day     est. profit Rs %d/day" % [int(value), int(round(d)), int(round(profit))]
+	var demand_range: Vector2i = Sim.calculate_demand_range(value, GameState.reputation)
+	price_label.text = "Price Rs %d     %d-%d customers likely" % [int(value), demand_range.x, demand_range.y]
 
 
 func _on_buy() -> void:
-	var cost: int = BUY_QUANTITY * int(SimConfig.PRODUCT_COST)
-	Sim.buy_inventory(BUY_QUANTITY)
+	var unit_cost: float = Sim.get_current_unit_cost()
+	if not Sim.buy_inventory(BUY_QUANTITY):
+		_float("Not enough cash", BAD, stock_value.global_position + Vector2(0, 30))
+		return
+	var cost: int = int(round(BUY_QUANTITY * unit_cost))
 	stock_ordered += BUY_QUANTITY
-	_diary("Ordered %d units of soap (Rs %d). Shelves are full again." % [BUY_QUANTITY, cost])
+	_diary("Ordered %d units of soap at Rs %d/unit (Rs %d). Shelves are full again." % [BUY_QUANTITY, int(round(unit_cost)), cost])
 	_float("+%d stock" % BUY_QUANTITY, STOCK_COL, stock_value.global_position + Vector2(0, 30))
 	_refresh_hud()
 	_update_buttons()
 
 
 func _on_hire_ravi() -> void:
-	Sim.hire_ravi()
+	if not Sim.hire_ravi():
+		return
 	ravi_hire_day = GameState.day
 	ravi.visible = true
 	var target := ravi.position
@@ -372,7 +572,9 @@ func _on_hire_ravi() -> void:
 
 
 func _on_expand() -> void:
-	Sim.expand_shop()
+	if not Sim.expand_shop():
+		_float("Need Rs %d to expand" % int(SimConfig.EXPANSION_COST), BAD, Vector2(360, 300))
+		return
 	_diary("Opened the bigger shop next door. Twice the space!")
 	var t := create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	t.set_parallel(true)
@@ -380,6 +582,7 @@ func _on_expand() -> void:
 	t.tween_property(shop, "position", Vector2(180, 30), 0.6)
 	_shake(12.0)
 	_confetti()
+	_refresh_hud()
 	_update_buttons()
 
 
@@ -388,7 +591,7 @@ func _on_expand() -> void:
 # ===========================================================================
 
 func _on_flow_pressed() -> void:
-	if chapter_done:
+	if chapter_done or decision_active:
 		return
 	running = not running
 	day_timer = 0.0
@@ -409,11 +612,119 @@ func _on_reset_pressed() -> void:
 	stock_ordered = 0
 	price_changes = 0
 	ravi_hire_day = -1
+	decision_queue.clear()
+	decision_active = false
+	decision_overlay.visible = false
+	telegraph_banner.visible = false
 	_clear_reflection()
 	_clear_log()
-	MissionManager.reset()
+	SaveManager.delete_save()
+	GameState.reset()
+	Missions.start_chapter()
+	cost_today = Sim.get_current_unit_cost()
+	cost_yesterday = cost_today
 	_refresh_hud()
 	_update_buttons()
+
+
+# ===========================================================================
+#  DAILY EVENTS — telegraph banner + credit/bulk/lender decision modals
+# ===========================================================================
+
+func _on_event_telegraphed(event: Dictionary) -> void:
+	telegraph_label.text = "TOMORROW: " + String(event.get("telegraph", ""))
+	telegraph_banner.visible = true
+
+
+func _on_credit_requested(request: Dictionary) -> void:
+	_queue_decision("credit", request)
+
+
+func _on_bulk_offered(offer: Dictionary) -> void:
+	_queue_decision("bulk", offer)
+
+
+func _on_lender_offered(offer: Dictionary) -> void:
+	_queue_decision("lender", offer)
+
+
+func _queue_decision(kind: String, data: Dictionary) -> void:
+	decision_queue.append({"kind": kind, "data": data})
+	if not decision_active:
+		_show_next_decision()
+
+
+func _show_next_decision() -> void:
+	if decision_queue.is_empty():
+		decision_active = false
+		decision_overlay.visible = false
+		_update_buttons()
+		return
+	decision_active = true
+	running = false
+	current_decision = decision_queue.pop_front()
+	var data: Dictionary = current_decision.data
+	match String(current_decision.kind):
+		"credit":
+			decision_title.text = "Credit request"
+			decision_body.text = "%s wants %d units of soap on credit, repaying in %d days." % [
+				String(data.name), int(data.qty), int(data.repay_in_days)]
+			decision_yes.text = "Grant credit"
+			decision_no.text = "Refuse"
+		"bulk":
+			decision_title.text = "Bulk order offer"
+			decision_body.text = "A lodge wants %d soaps at Rs %d each, delivered in %d days." % [
+				int(data.qty), int(round(float(data.unit_price))), int(data.deadline_days)]
+			decision_yes.text = "Accept"
+			decision_no.text = "Decline"
+		"lender":
+			decision_title.text = "The Mahajan's offer"
+			decision_body.text = "Cash is short. Mahajan offers Rs %d now, repay Rs %d by next month-end." % [
+				int(data.principal), int(data.repay)]
+			decision_yes.text = "Accept loan"
+			decision_no.text = "Decline"
+	decision_overlay.visible = true
+	_refresh_hud()
+
+
+func _on_decision_yes_pressed() -> void:
+	var data: Dictionary = current_decision.get("data", {})
+	match String(current_decision.get("kind", "")):
+		"credit":
+			if Sim.grant_credit():
+				_diary("Granted %s credit for %d units." % [String(data.name), int(data.qty)])
+			else:
+				_diary("Couldn't grant %s credit - not enough stock." % String(data.name))
+		"bulk":
+			Sim.accept_bulk_offer()
+			_diary("Accepted a bulk order for %d units." % int(data.qty))
+		"lender":
+			Sim.accept_lender()
+			_diary("Took a Rs %d loan from the Mahajan." % int(data.principal))
+	_show_next_decision()
+
+
+func _on_decision_no_pressed() -> void:
+	var data: Dictionary = current_decision.get("data", {})
+	match String(current_decision.get("kind", "")):
+		"credit":
+			Sim.refuse_credit()
+			_diary("Refused %s's credit request." % String(data.name))
+		"bulk":
+			Sim.decline_bulk_offer()
+			_diary("Declined the bulk order.")
+		"lender":
+			Sim.decline_lender()
+			_diary("Declined the Mahajan's loan.")
+	_show_next_decision()
+
+
+func _on_month_ended(rent_paid: float, _cash_after: float) -> void:
+	_diary("Month-end. Paid Rs %d in rent." % int(rent_paid))
+	if GameState.lender_debt > 0.0:
+		_diary("   Loan outstanding: Rs %d." % int(GameState.lender_debt))
+	_float("Rent -Rs %d" % int(rent_paid), BAD, Vector2(360, 330))
+	_shake(7.0)
 
 
 # ===========================================================================
@@ -424,15 +735,15 @@ func _on_mission_started(m: Dictionary) -> void:
 	running = false
 	day_timer = 0.0
 	mission_title.text = m.title
-	mission_objective.text = "Objective: " + m.objective
-	mission_status.text = m.description
+	mission_objective.text = String(m.get("intro", ""))
+	mission_status.text = ""
 	_diary("New chapter beat: " + m.title)
 	_pulse(mission_card)
 	_update_buttons()
 
 
 func _on_mission_completed(m: Dictionary) -> void:
-	var msg: String = MissionManager.last_message
+	var msg: String = String(m.get("debrief", ""))
 	mission_status.text = "Done! " + (msg if msg != "" else m.title)
 	_float("Mission complete!", GOOD, Vector2(360, 200))
 
@@ -459,35 +770,36 @@ func _refresh_hud() -> void:
 	rep_value.text = str(int(round(GameState.reputation)))
 	stock_value.text = str(GameState.inventory)
 	stock_value.add_theme_color_override("font_color", WARN if GameState.inventory <= LOW_STOCK else STOCK_COL)
+	regulars_value.text = str(GameState.regular_count)
 
 
 func _update_buttons() -> void:
-	var cur: Dictionary = MissionManager.get_current_mission()
+	var cur: Dictionary = Missions.get_current_mission()
 	var cur_id: String = cur.get("id", "")
 
-	var can_hire_ravi: bool = (cur_id == "the_long_queue") and not GameState.has_ravi
+	var can_hire_ravi: bool = (cur_id == "long_queue") and not GameState.has_ravi
 	ravi_button.disabled = not can_hire_ravi
 	ravi_button.text = "Ravi hired" if GameState.has_ravi else "Hire Ravi (Rs %d/day)" % int(SimConfig.RAVI_WAGE)
 
-	expand_button.disabled = not ((cur_id == "the_shop_next_door") and not GameState.has_expanded_shop)
+	expand_button.disabled = not ((cur_id == "shop_next_door") and not GameState.has_expanded_shop)
 
-	buy_button.text = "Buy %d stock (Rs %d)" % [BUY_QUANTITY, BUY_QUANTITY * int(SimConfig.PRODUCT_COST)]
+	buy_button.text = "Buy %d stock - Rs%d today (Rs%d yest.)" % [BUY_QUANTITY, int(round(cost_today)), int(round(cost_yesterday))]
 	buy_button.disabled = chapter_done
 
-	flow_button.disabled = chapter_done
+	flow_button.disabled = chapter_done or decision_active
 	flow_button.text = "Pause" if running else "Start / Continue"
 
 	_update_emphasis(cur_id)
 
 
-## Brighten the button the player should press now; subdue the rest (Task 6).
+## Brighten the button the player should press now; subdue the rest.
 func _update_emphasis(cur_id: String) -> void:
 	var focus: Button = null
-	if cur_id == "running_out_of_stock":
+	if cur_id == "restock":
 		focus = buy_button
-	elif cur_id == "the_long_queue":
+	elif cur_id == "long_queue":
 		focus = ravi_button
-	elif cur_id == "the_shop_next_door":
+	elif cur_id == "shop_next_door":
 		focus = expand_button
 	else:
 		focus = flow_button   # Opening Day & Month-End: keep trading
@@ -528,7 +840,7 @@ func _clear_log() -> void:
 
 
 # ===========================================================================
-#  REFLECTION SCREEN (the Mirror) + "Your Opinion Matters" (Task: Mirror + feedback)
+#  REFLECTION SCREEN (the Mirror) + "Your Opinion Matters"
 # ===========================================================================
 
 func _on_price_drag_ended(value_changed: bool) -> void:
@@ -540,9 +852,9 @@ func _build_reflection() -> void:
 	_clear_reflection()
 
 	_ref_label("YOUR BUSINESS", MUTED, 16)
-	_ref_label("Days survived: %d\nCustomers served: %d\nCustomers turned away: %d\nTotal earned: Rs %d\nStock ordered: %d units\nMoney left: Rs %d" % [
+	_ref_label("Days survived: %d\nCustomers served: %d\nCustomers turned away: %d\nTotal earned: Rs %d\nStock ordered: %d units\nRegulars built: %d\nMoney left: Rs %d" % [
 		GameState.day, GameState.customers_served, GameState.customers_lost,
-		int(total_revenue), stock_ordered, int(GameState.cash)], TEXT, 18)
+		int(total_revenue), stock_ordered, GameState.regular_count, int(GameState.cash)], TEXT, 18)
 
 	_ref_label("YOUR DECISIONS", MUTED, 16)
 	var ravi_txt: String = ("day %d" % ravi_hire_day) if ravi_hire_day >= 0 else "not hired"
@@ -594,6 +906,8 @@ func _make_story() -> String:
 		parts.append("Many customers left unserved - capacity and stock were tight.")
 	else:
 		parts.append("You served most customers who came - a smooth operation.")
+	if GameState.regular_count >= 15:
+		parts.append("A loyal circle of regulars grew around your shop.")
 	if GameState.has_expanded_shop:
 		parts.append("And you took the leap to expand next door.")
 	return " ".join(PackedStringArray(parts))

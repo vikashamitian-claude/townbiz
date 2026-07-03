@@ -1,145 +1,108 @@
 extends Node
-## BizTown — Sprint 2: Mission Engine. Autoloaded as "MissionManager".
-##
-## Sits ABOVE the Simulation Engine. It controls progression only:
-##   * tracks the current mission,
-##   * checks completion conditions by READING GameState,
-##   * advances to the next mission and applies simple rewards.
-##
-## It contains NO business calculations. It re-checks the objective whenever the
-## Simulation Engine reports that something changed (via Sim's signals).
+## BizTown — Living Business Build: mission progression. Autoloaded as "Missions".
+## EVENT-DRIVEN ONLY: connects to the five explicit Sim events, NEVER to Sim.changed.
+## Reads GameState; never does business math.
 
 signal mission_started(mission: Dictionary)
 signal mission_completed(mission: Dictionary)
-signal chapter_completed()
+signal chapter_completed
 
 var missions: Array = []
-var current_mission: Dictionary = {}
-var is_active: bool = false
-var unlocked: Array[String] = []
-var last_message: String = ""
+var current_index: int = -1
 
 
 func _ready() -> void:
-	missions = MissionData.chapter_1()
-	# React to the business state changing — but never do business math here.
-	Sim.changed.connect(_on_state_changed)
-	Sim.day_ended.connect(_on_day_ended)
-	Sim.ravi_hired.connect(_on_state_changed)
-
-
-# ---------------------------------------------------------------------------
-#  Public control
-# ---------------------------------------------------------------------------
-
-## Begin Chapter 1 from the first mission (also resets the simulation).
-func start_chapter() -> void:
-	GameState.reset()
-	unlocked.clear()
-	start_mission(missions[0].id)
-
-
-## Start a specific mission by id (used by the chapter flow and for independent testing).
-func start_mission(id: String) -> void:
-	var m: Dictionary = find_mission(id)
-	if m.is_empty():
-		push_warning("MissionManager: mission not found: " + id)
-		return
-	current_mission = m
-	is_active = true
-	mission_started.emit(current_mission)
-	# Arm-on-entry: do NOT check completion here. A mission completes only on a LATER
-	# sim event, a force-complete (test), or an explicit action — never the instant it starts.
-	# This prevents same-instant completion cascades (e.g. M4 -> M5 -> chapter end).
-
-
-## Force the current mission to complete — testing/debug only.
-func force_complete_current() -> void:
-	if is_active:
-		_complete_current()
-
-
-## Reset the whole chapter and the simulation back to the start.
-func reset() -> void:
-	is_active = false
-	current_mission = {}
+	# The five explicit events — and ONLY these — drive mission checks.
+	Sim.day_ended.connect(_on_sim_event.bind("day_ended"))
+	Sim.inventory_purchased.connect(_on_inventory_purchased)
+	Sim.ravi_hired.connect(_on_sim_event.bind("ravi_hired"))
+	Sim.shop_expanded.connect(_on_sim_event.bind("shop_expanded"))
+	Sim.month_ended.connect(_on_month_ended)
 	start_chapter()
 
 
-# ---------------------------------------------------------------------------
-#  Lookup
-# ---------------------------------------------------------------------------
-
-func find_mission(id: String) -> Dictionary:
-	for m in missions:
-		if m.id == id:
-			return m
-	return {}
+func start_chapter() -> void:
+	missions = MissionData.chapter_1()
+	current_index = -1
+	_advance()
 
 
 func get_current_mission() -> Dictionary:
-	return current_mission
+	if current_index >= 0 and current_index < missions.size():
+		return missions[current_index]
+	return {}
 
 
-# ---------------------------------------------------------------------------
-#  Event handlers (from the Simulation Engine)
-# ---------------------------------------------------------------------------
-
-func _on_state_changed() -> void:
-	_check_completion()
+## For SaveManager.
+func to_dict() -> Dictionary:
+	return { "current_index": current_index }
 
 
-func _on_day_ended(_result: Dictionary) -> void:
-	_check_completion()
+func from_dict(d: Dictionary) -> void:
+	current_index = int(d.get("current_index", 0))
+	if current_index >= 0 and current_index < missions.size():
+		mission_started.emit(missions[current_index])
 
 
-# ---------------------------------------------------------------------------
-#  Internal
-# ---------------------------------------------------------------------------
+# --- signal adapters (Godot connects need matching arities) ---
 
-func _check_completion() -> void:
-	if not is_active or current_mission.is_empty():
+func _on_inventory_purchased(_qty: int, _unit_cost: float) -> void:
+	_on_sim_event("inventory_purchased")
+
+
+func _on_month_ended(_rent: float, _cash: float) -> void:
+	_on_sim_event("month_ended")
+
+
+func _on_sim_event(_result = null, event_name: String = "") -> void:
+	# bind() appends the event name as the LAST argument; signals with one payload
+	# arg pass it first. Normalize:
+	var evt: String = event_name if event_name != "" else String(_result)
+	_check_current(evt)
+
+
+func _check_current(event_name: String) -> void:
+	var m: Dictionary = get_current_mission()
+	if m.is_empty():
 		return
-	if _is_condition_met(current_mission.condition):
-		_complete_current()
+	var check_on: Array = m.get("check_on", [])
+	if not check_on.has(event_name):
+		return
+	if _conditions_met(m):
+		var completed: Dictionary = m
+		mission_completed.emit(completed)
+		_advance()
 
 
-func _complete_current() -> void:
-	is_active = false
-	var finished: Dictionary = current_mission
-	_apply_reward(finished.get("reward", {}))
-	mission_completed.emit(finished)
+func _conditions_met(m: Dictionary) -> bool:
+	for c in m.get("conditions", []):
+		match String(c.get("type", "")):
+			"customers_served_total":
+				if GameState.customers_served < int(c.value):
+					return false
+			"inventory_at_least":
+				if GameState.inventory < int(c.value):
+					return false
+			"ravi_hired":
+				if not GameState.has_ravi:
+					return false
+			"cash_at_least_on_day":
+				if GameState.day < int(c.day):
+					return false
+				if GameState.cash < float(c.value):
+					return false
+			"shop_expanded":
+				if not GameState.has_expanded_shop:
+					return false
+			_:
+				push_warning("Unknown mission condition type: %s" % [c])
+				return false
+	return true
 
-	var next_id: String = finished.get("next", "")
-	if next_id == "":
-		current_mission = {}
-		chapter_completed.emit()
+
+func _advance() -> void:
+	current_index += 1
+	if current_index < missions.size():
+		mission_started.emit(missions[current_index])
 	else:
-		start_mission(next_id)
-
-
-## Maps a condition type to a simple GameState comparison. No business math here.
-func _is_condition_met(c: Dictionary) -> bool:
-	match c.get("type", ""):
-		"cash_at_least": return GameState.cash >= c.value
-		"inventory_at_most": return GameState.inventory <= c.value
-		"inventory_at_least": return GameState.inventory >= c.value
-		"reputation_at_least": return GameState.reputation >= c.value
-		"ravi_hired": return GameState.has_ravi
-		"shop_expanded": return GameState.has_expanded_shop
-		"day_at_least": return GameState.day >= c.value
-		"customers_served_at_least": return GameState.customers_served >= c.value
-		_:
-			push_warning("MissionManager: unknown condition type: " + str(c.get("type", "")))
-			return false
-
-
-func _apply_reward(r: Dictionary) -> void:
-	if r.has("cash"):
-		GameState.cash += r.cash
-	if r.has("reputation"):
-		Sim.apply_reputation_change(r.reputation)
-	if r.has("unlock") and r.unlock != "":
-		if not unlocked.has(r.unlock):
-			unlocked.append(r.unlock)
-	last_message = r.get("message", "")
+		chapter_completed.emit()
