@@ -51,9 +51,10 @@ Governed by `BIZTOWN_BUILD_SPEC.md` (wins over any older sprint doc it conflicts
    Month-End without the lender; expansion affordable day 40-55.
 5. [ ] **Human playtest gate** — blocked behind Stage 2/4 test execution above.
 
-**To unblock:** run `godot --headless --path . res://tests/TestRunner.tscn`
-and `godot --headless --path . res://tests/BalanceSweep.tscn` (see README) and
-report the output, or make a Godot binary available in the dev session.
+**To unblock:** run the test scenes on Vikash's Android device via the Godot
+Android editor (see `ANDROID_TESTING.md` — results are drawn on screen for
+screenshotting), or run the headless commands in the README on any machine
+with Godot, and report the output back.
 
 Android export stays gated regardless of the above.
 

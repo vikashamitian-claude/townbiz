@@ -41,6 +41,10 @@ godot --headless --path . res://tests/TestRunner.tscn
 Exit code 0 means all 6 suites (signals, 60-day economy, event seed sweep, credit,
 save/load, mission playthrough) passed. Suite-by-suite output prints to stdout.
 
+**On a phone / in the editor** (no headless flag): open `tests/TestRunner.tscn` and
+Run Current Scene — the report is drawn on screen instead of quitting, so it can be
+read or screenshotted. See `ANDROID_TESTING.md` for the full phone workflow.
+
 To run the 100-seed x 60-day balance sweep (reports % surviving Month-End without the
 lender, and the median day expansion becomes affordable — tune only `SimConfig.gd`
 against these numbers, see `BIZTOWN_BUILD_SPEC.md` §9):

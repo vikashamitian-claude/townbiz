@@ -1,6 +1,8 @@
 extends Node
 ## BizTown — Living Business Build: balance sweep (Sprint L4).
-## Run:  godot --headless --path . res://tests/BalanceSweep.tscn
+## Headless (CI):  godot --headless --path . res://tests/BalanceSweep.tscn
+## On-device (e.g. the Godot Android editor): open this scene and Run Current
+##   Scene — the numbers are drawn on screen instead of quitting.
 ## Runs a naive default-price auto-player across 100 seeds x 60 days and reports:
 ##   - % of seeds that reach every month-end (day 30, day 60) with cash >= 0
 ##     WITHOUT ever being offered the lender (i.e. never went broke).
@@ -14,6 +16,7 @@ const SEED_COUNT: int = 100
 const DAYS: int = 60
 
 var went_broke: bool = false
+var report_lines: PackedStringArray = []
 
 
 func _ready() -> void:
@@ -43,15 +46,55 @@ func _ready() -> void:
 		else:
 			median_expansion = str(expansion_days[mid])
 
-	print("\n==== BALANCE SWEEP: %d seeds x %d days ====" % [SEED_COUNT, DAYS])
-	print("Survived Month-End without lender: %d/%d (%.1f%%)  [target ~70%%]" % [survived_count, SEED_COUNT, survive_pct])
-	print("Went broke (offered lender) on seeds: %s" % [broke_seeds])
-	print("Expansion affordable (cash >= Rs %d): %d/%d seeds reached it within %d days" % [
+	_out("\n==== BALANCE SWEEP: %d seeds x %d days ====" % [SEED_COUNT, DAYS])
+	_out("Survived Month-End without lender: %d/%d (%.1f%%)  [target ~70%%]" % [survived_count, SEED_COUNT, survive_pct])
+	_out("Went broke (offered lender) on seeds: %s" % [broke_seeds])
+	_out("Expansion affordable (cash >= Rs %d): %d/%d seeds reached it within %d days" % [
 		int(SimConfig.EXPANSION_COST), expansion_days.size(), SEED_COUNT, DAYS])
-	print("  never affordable within window: %d" % never_expanded)
-	print("  median day expansion became affordable: %s  [target 40-55]" % median_expansion)
-	print("==== END BALANCE SWEEP ====\n")
-	get_tree().quit(0)
+	_out("  never affordable within window: %d" % never_expanded)
+	_out("  median day expansion became affordable: %s  [target 40-55]" % median_expansion)
+	_out("==== END BALANCE SWEEP ====\n")
+	# Don't leave a sweep-state autosave behind for the real game to "Continue" into.
+	SaveManager.delete_save()
+	if DisplayServer.get_name() == "headless":
+		get_tree().quit(0)
+	else:
+		_show_report_on_screen()
+
+
+func _out(line: String) -> void:
+	print(line)
+	report_lines.append(line)
+
+
+## Windowed mode (phone/editor): draw the report instead of quitting.
+func _show_report_on_screen() -> void:
+	var canvas := CanvasLayer.new()
+	add_child(canvas)
+	var bg := ColorRect.new()
+	bg.color = Color(0.09, 0.11, 0.16)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	canvas.add_child(bg)
+	var scroll := ScrollContainer.new()
+	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	canvas.add_child(scroll)
+	var vbox := VBoxContainer.new()
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.add_theme_constant_override("separation", 10)
+	scroll.add_child(vbox)
+
+	var head := Label.new()
+	head.text = "BALANCE SWEEP RESULTS"
+	head.add_theme_font_size_override("font_size", 30)
+	head.add_theme_color_override("font_color", Color(0.4, 0.86, 0.52))
+	vbox.add_child(head)
+
+	var body := Label.new()
+	body.text = "\n".join(report_lines)
+	body.add_theme_font_size_override("font_size", 16)
+	body.add_theme_color_override("font_color", Color(0.90, 0.93, 0.98))
+	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vbox.add_child(body)
 
 
 ## Naive default-price bot: keeps stock topped up, hires Ravi once affordable,

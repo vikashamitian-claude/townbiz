@@ -132,3 +132,32 @@ this out for real, one of the following needs to happen:
 
 Everything else in the five stages is done to the best of what static review
 can verify.
+
+---
+
+## Update 2026-07-03 (later): Android-first verification workflow
+
+Vikash confirmed he works entirely from an Android device (no desktop). That
+resolves the Stage 2/4 blocker path: his phone, running the official Godot
+Android editor, becomes the test runtime. Changes made to support that loop:
+
+FILES CHANGED:
+- `tests/TestRunner.gd` — when NOT running headless (`DisplayServer.get_name()
+  != "headless"`), the runner now draws its full report on screen (failures
+  listed first, screenshot-friendly) instead of calling `quit()` — on a phone,
+  quitting instantly made the results unreadable. Headless behavior is
+  byte-identical: same suites, same asserts, same exit codes. Also: renamed
+  the `_suite(name, ...)` parameter to `suite_name` (shadowed `Node.name`,
+  a GDScript warning), and the runner now deletes the autosave when finished
+  so the real game doesn't offer "Continue" into leftover test state.
+  **Test logic untouched — output plumbing and cleanup only.**
+- `tests/BalanceSweep.gd` — same on-screen-report + save-cleanup treatment.
+- `ANDROID_TESTING.md` — new: the full phone workflow (install Godot Android
+  editor, get the branch onto the phone, run the test scenes, what to send
+  back).
+- `README.md`, `TASKS.md` — point at the Android workflow as the unblock path.
+
+NEXT ACTION (on Vikash): follow `ANDROID_TESTING.md`, run
+`tests/TestRunner.tscn` and `tests/BalanceSweep.tscn` on the phone, and send
+back the screenshots. Stage 2 closes on a green report; Stage 4's tuning loop
+starts from the sweep numbers.

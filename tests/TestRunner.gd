@@ -1,11 +1,15 @@
 extends Node
-## BizTown — Living Business Build: headless test runner.
-## Run:  godot --headless --path . res://tests/TestRunner.tscn
+## BizTown — Living Business Build: test runner.
+## Headless (CI):  godot --headless --path . res://tests/TestRunner.tscn
+##   Exits 0 on all-pass, 1 on any failure.
+## On-device (e.g. the Godot Android editor): open this scene and Run Current
+##   Scene — instead of quitting, the full report is drawn on screen so it can
+##   be read or screenshotted. Test logic is identical in both modes.
 ## Running a SCENE (not -s) guarantees autoloads are initialized.
-## Exits 0 on all-pass, 1 on any failure.
 
 var failures: int = 0
 var checks: int = 0
+var report_lines: PackedStringArray = []
 
 
 func _ready() -> void:
@@ -16,28 +20,83 @@ func _ready() -> void:
 	_suite("CREDIT", _test_credit)
 	_suite("SAVE/LOAD", _test_save)
 	_suite("MISSION PLAYTHROUGH", _test_missions)
-	print("\n==== %d checks, %d failures ====" % [checks, failures])
-	get_tree().quit(1 if failures > 0 else 0)
+	# Don't leave a test-state autosave behind for the real game to "Continue" into.
+	SaveManager.delete_save()
+	_out("\n==== %d checks, %d failures ====" % [checks, failures])
+	if DisplayServer.get_name() == "headless":
+		get_tree().quit(1 if failures > 0 else 0)
+	else:
+		_show_report_on_screen()
 
 
-func _suite(name: String, fn: Callable) -> void:
-	print("\n--- %s ---" % name)
+func _out(line: String) -> void:
+	print(line)
+	report_lines.append(line)
+
+
+func _suite(suite_name: String, fn: Callable) -> void:
+	_out("\n--- %s ---" % suite_name)
 	fn.call()
 
 
 func _assert(cond: bool, msg: String) -> void:
 	checks += 1
 	if cond:
-		print("  PASS  %s" % msg)
+		_out("  PASS  %s" % msg)
 	else:
 		failures += 1
 		printerr("  FAIL  %s" % msg)
+		report_lines.append("  FAIL  %s" % msg)
 
 
 func _fresh(seed_value: int) -> void:
 	GameState.reset(seed_value)
 	Missions.start_chapter()
 	SaveManager.delete_save()
+
+
+## Windowed mode (phone/editor): draw the report instead of quitting.
+func _show_report_on_screen() -> void:
+	var canvas := CanvasLayer.new()
+	add_child(canvas)
+	var bg := ColorRect.new()
+	bg.color = Color(0.09, 0.11, 0.16)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	canvas.add_child(bg)
+	var scroll := ScrollContainer.new()
+	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	canvas.add_child(scroll)
+	var vbox := VBoxContainer.new()
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.add_theme_constant_override("separation", 10)
+	scroll.add_child(vbox)
+
+	var head := Label.new()
+	head.text = ("ALL TESTS PASSED" if failures == 0 else "%d FAILURE(S)" % failures) \
+		+ "  -  %d checks" % checks
+	head.add_theme_font_size_override("font_size", 30)
+	head.add_theme_color_override("font_color",
+		Color(0.4, 0.86, 0.52) if failures == 0 else Color(0.92, 0.42, 0.42))
+	vbox.add_child(head)
+
+	if failures > 0:
+		var fail_only := Label.new()
+		var fail_lines: PackedStringArray = []
+		for line in report_lines:
+			if line.contains("FAIL"):
+				fail_lines.append(line)
+		fail_only.text = "\n".join(fail_lines)
+		fail_only.add_theme_font_size_override("font_size", 16)
+		fail_only.add_theme_color_override("font_color", Color(0.92, 0.42, 0.42))
+		fail_only.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		vbox.add_child(fail_only)
+
+	var body := Label.new()
+	body.text = "\n".join(report_lines)
+	body.add_theme_font_size_override("font_size", 14)
+	body.add_theme_color_override("font_color", Color(0.62, 0.68, 0.80))
+	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vbox.add_child(body)
 
 
 # ------------------------------------------------------------------
@@ -147,7 +206,7 @@ func _test_events() -> void:
 		var actual_frac: float = float(counts.get(k, 0)) / total_days
 		if absf(actual_frac - expected_frac) > maxf(expected_frac * 0.35, 0.02):
 			freq_ok = false
-			printerr("    freq off: %s expected %.3f got %.3f" % [k, expected_frac, actual_frac])
+			_out("    freq off: %s expected %.3f got %.3f" % [k, expected_frac, actual_frac])
 	_assert(freq_ok, "event frequencies within tolerance of weights over 3000 days")
 
 
