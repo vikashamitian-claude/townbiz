@@ -29,6 +29,12 @@ const BAD := Color(0.92, 0.42, 0.42)
 const WARN := Color(0.96, 0.80, 0.36)
 const ACCENT := Color(0.45, 0.85, 0.6)
 
+# Cosmetic clothing palette for spawned customers (UI-only variety)
+const CUSTOMER_COLORS: Array = [
+	Color(0.55, 0.62, 0.78), Color(0.75, 0.55, 0.45), Color(0.55, 0.70, 0.52),
+	Color(0.72, 0.62, 0.42), Color(0.62, 0.52, 0.70), Color(0.48, 0.65, 0.68),
+]
+
 # --- World points ---
 const COUNTER_POS := Vector3(0, 0, -2.5)     # in front of the shop door
 const RAVI_WAIT_POS := Vector3(-4.5, 0, -1.5)
@@ -172,35 +178,60 @@ func _build_world() -> void:
 
 	# Ground (oversized well past the walkable BOUND so its edge is never in frame)
 	GrayboxKit.static_box(self, Vector3(0, -0.25, 0), Vector3(200, 0.5, 200), Color(0.45, 0.62, 0.38))
-	# Road (visual strip, no collider needed)
+	# Road with sidewalks and center dashes (visual, no colliders)
 	GrayboxKit.visual_box(self, Vector3(0, 0.02, 1.5), Vector3(40, 0.04, 3.2), Color(0.32, 0.33, 0.36))
+	var sidewalk_col := Color(0.62, 0.60, 0.56)
+	GrayboxKit.visual_box(self, Vector3(0, 0.03, -0.4), Vector3(40, 0.06, 0.6), sidewalk_col)
+	GrayboxKit.visual_box(self, Vector3(0, 0.03, 3.4), Vector3(40, 0.06, 0.6), sidewalk_col)
+	for dash_x in range(-18, 19, 4):
+		GrayboxKit.visual_box(
+			self, Vector3(dash_x, 0.045, 1.5), Vector3(1.2, 0.02, 0.16), Color(0.85, 0.85, 0.80))
 
-	# The soap shop
-	shop_body = GrayboxKit.static_box(
-		self, Vector3(0, 1.5, -6), Vector3(6, 3, 4), Color(0.78, 0.55, 0.38))
+	# The player's shop (same footprint/collider as always; Town3D draws its
+	# own storefront, so the building's generic door/window are disabled)
+	shop_body = GrayboxKit.building(
+		self, Vector3(0, 1.5, -6), Vector3(6, 3, 4),
+		Color(0.78, 0.55, 0.38), Color(0.62, 0.30, 0.24), 1.0, false)
 	GrayboxKit.visual_box(  # door
 		self, Vector3(1.2, 1.0, -3.95), Vector3(1.1, 2.0, 0.12), Color(0.30, 0.22, 0.16))
 	GrayboxKit.visual_box(  # window
 		self, Vector3(-1.2, 1.7, -3.95), Vector3(1.4, 1.0, 0.12), Color(0.55, 0.78, 0.95))
-	GrayboxKit.label3d(self, business.shop_sign_text, Vector3(0, 3.6, -4), 96, Color(1, 0.95, 0.8))
-	# Counter (in front, under an awning)
+	GrayboxKit.label3d(self, business.shop_sign_text, Vector3(0, 4.4, -4), 96, Color(1, 0.95, 0.8))
+	# Counter with a sloped awning and stock crates beside it
 	GrayboxKit.visual_box(self, Vector3(0, 0.5, -2.6), Vector3(2.6, 1.0, 0.7), Color(0.42, 0.32, 0.24))
+	var awning := GrayboxKit.visual_box(
+		self, Vector3(0, 2.35, -3.0), Vector3(3.2, 0.08, 1.6), Color(0.85, 0.45, 0.35))
+	awning.rotation.x = -0.22
+	GrayboxKit.crate(self, Vector3(-2.1, 0, -3.0), 0.6, Color(0.62, 0.47, 0.30))
+	GrayboxKit.crate(self, Vector3(-2.1, 0.6, -3.0), 0.45, Color(0.68, 0.52, 0.34))
+	GrayboxKit.crate(self, Vector3(-2.7, 0, -2.7), 0.5, Color(0.58, 0.44, 0.28))
 
-	# The shop next door (expansion target)
-	neighbor_body = GrayboxKit.static_box(
-		self, Vector3(8, 1.3, -6), Vector3(5, 2.6, 4), Color(0.52, 0.53, 0.58))
+	# The shop next door (expansion target; keeps its "Wall" mesh repaintable)
+	neighbor_body = GrayboxKit.building(
+		self, Vector3(8, 1.3, -6), Vector3(5, 2.6, 4),
+		Color(0.52, 0.53, 0.58), Color(0.38, 0.40, 0.45), 1.0, false)
 	neighbor_sign = GrayboxKit.label3d(
-		self, "FOR RENT", Vector3(8, 3.1, -4), 72, Color(0.85, 0.85, 0.85))
+		self, "FOR RENT", Vector3(8, 3.6, -4), 72, Color(0.85, 0.85, 0.85))
 
-	# Filler houses (set dressing)
-	GrayboxKit.static_box(self, Vector3(-9, 1.4, -7), Vector3(4, 2.8, 3.5), Color(0.62, 0.50, 0.60))
-	GrayboxKit.static_box(self, Vector3(-15, 1.2, -5), Vector3(3.5, 2.4, 3), Color(0.50, 0.60, 0.68))
-	GrayboxKit.static_box(self, Vector3(14, 1.3, -6.5), Vector3(4, 2.6, 3.5), Color(0.68, 0.60, 0.45))
-	GrayboxKit.static_box(self, Vector3(-12, 1.2, 6.5), Vector3(4, 2.4, 3), Color(0.58, 0.55, 0.50))
-	GrayboxKit.static_box(self, Vector3(11, 1.3, 7), Vector3(4.5, 2.6, 3.2), Color(0.52, 0.62, 0.55))
-	# Trees
-	for p in [Vector3(-5, 0, 5), Vector3(5, 0, 6), Vector3(16, 0, 2.8), Vector3(-17, 0, 3.2)]:
+	# Filler houses (set dressing; same footprints/colliders as before)
+	GrayboxKit.building(self, Vector3(-9, 1.4, -7), Vector3(4, 2.8, 3.5),
+		Color(0.62, 0.50, 0.60), Color(0.45, 0.30, 0.35), 1.0)
+	GrayboxKit.building(self, Vector3(-15, 1.2, -5), Vector3(3.5, 2.4, 3),
+		Color(0.50, 0.60, 0.68), Color(0.32, 0.38, 0.48), 1.0)
+	GrayboxKit.building(self, Vector3(14, 1.3, -6.5), Vector3(4, 2.6, 3.5),
+		Color(0.68, 0.60, 0.45), Color(0.50, 0.38, 0.26), 1.0)
+	GrayboxKit.building(self, Vector3(-12, 1.2, 6.5), Vector3(4, 2.4, 3),
+		Color(0.58, 0.55, 0.50), Color(0.40, 0.34, 0.30), -1.0)
+	GrayboxKit.building(self, Vector3(11, 1.3, 7), Vector3(4.5, 2.6, 3.2),
+		Color(0.52, 0.62, 0.55), Color(0.34, 0.44, 0.38), -1.0)
+
+	# Trees (two kinds) and street lamps along the road
+	for p in [Vector3(-5, 0, 5), Vector3(5, 0, 6), Vector3(16, 0, 2.8)]:
 		GrayboxKit.tree(self, p)
+	for p in [Vector3(-17, 0, 3.2), Vector3(-6.5, 0, -3.5), Vector3(17.5, 0, -4)]:
+		GrayboxKit.pine_tree(self, p)
+	for lamp_x in [-13.0, -4.0, 4.5, 13.0]:
+		GrayboxKit.lamp_post(self, Vector3(lamp_x, 0, -0.7))
 
 	# Ravi (idle NPC; shown when relevant)
 	ravi_npc = GrayboxKit.person(Color(0.35, 0.48, 0.78))
@@ -604,7 +635,8 @@ func _spawn_customers_3d(result: Dictionary) -> void:
 
 
 func _spawn_customer_3d(served: bool, idx: int) -> void:
-	var npc := GrayboxKit.person(Color(0.55, 0.62, 0.78))
+	# Cosmetic-only randomness (allowed outside GameState.rng per biztown-rules)
+	var npc := GrayboxKit.person(CUSTOMER_COLORS[randi() % CUSTOMER_COLORS.size()])
 	var from_left: bool = (idx % 2) == 0
 	npc.position = SPAWN_LEFT if from_left else SPAWN_RIGHT
 	npc_root.add_child(npc)
@@ -700,7 +732,7 @@ func _paint_neighbor(sign_text: String, sign_col: Color, wall_col: Color) -> voi
 		return
 	neighbor_sign.text = sign_text
 	neighbor_sign.modulate = sign_col
-	var mesh := neighbor_body.get_child(1) as MeshInstance3D
+	var mesh := neighbor_body.get_node_or_null("Wall") as MeshInstance3D
 	if mesh != null and mesh.mesh is BoxMesh:
 		var box := mesh.mesh as BoxMesh
 		var mat := box.material as StandardMaterial3D

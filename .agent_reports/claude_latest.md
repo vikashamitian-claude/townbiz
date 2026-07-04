@@ -1,155 +1,81 @@
-# Claude Code Report — Multi-business vision: stabilization + Phase 1-2 foundation
+# Claude Code Report — Phase 3D-2: procedural low-poly town upgrade
 
 Date: 2026-07-04
 
-- STAGE: Response to the long-term vision directive (walkable 3D multi-business
-  world). Phases 1-2 of the requested priority order executed this session;
-  Phase 3 partially done; Phase 4 (this report) below.
-- STATUS: PASS WITH MINOR FIXES — real bug found and fixed during
-  stabilization re-verification; new architecture foundation built and
-  statically verified; on-device confirmation still pending (unchanged since
-  session start — nothing has executed anywhere yet).
+- STAGE: Sprint 3D, Phase 3D-2 (Vikash: "continue Phase 3D-2 with the
+  low-poly assets")
+- STATUS: PASS WITH MINOR FIXES — visual upgrade complete and parse-verified;
+  on-device confirmation pending (as with everything this session, nothing
+  has executed anywhere yet)
 
-## What was implemented
+## Key decision (recorded in HUMAN_DECISIONS.md)
 
-### Phase 1 — Stabilization re-verification (static, no Godot available)
+The original 3D-2 plan called for external CC0 packs (Kenney-style). The
+cloud sandbox can't fetch them (network scoped to this repo only), and
+importing binary `.glb` files blind — no Godot to check scale, materials, or
+import settings — is the riskiest possible change type. Implemented 3D-2 as
+a **procedural low-poly upgrade** instead: Godot built-in meshes only,
+text-diffable, GL-Compatibility-safe, fully parse-verifiable. External packs
+remain a later option; `GrayboxKit.gd` is still the single swap point.
 
-Re-checked, by reading the actual code rather than assuming prior fixes held:
-- `project.godot` autoload order (`GameState, Events, Sim, Missions,
-  SaveManager`) and main scene (`Town3D.tscn`) — correct.
-- `MissionManager.gd` still connects only to the five explicit Sim events,
-  never generic `Sim.changed` — confirmed, no regression.
-- The `flow_button` permanent-freeze fix from the prior PR#4 review round —
-  confirmed still intact after all subsequent edits.
-- `GameState.to_dict()`/`from_dict()` field parity — every key written is
-  read back (checked programmatically), including all fields added this
-  session.
-- `scenes/Town3D.tscn` — minimal, correctly references
-  `scripts/world3d/Town3D.gd` (everything else built in code, matching the
-  established pattern).
+## What changed
 
-Also ran one more `/code-review --fix` pass (4 of 8 finder angles; stopped
-there as a judgment call once the customer-variety diff had real findings in
-hand and this session's priority shifted to the bigger vision request) against
-the not-yet-merged customer-variety diff (PR #5) before you could even test
-it. Found and fixed:
-1. **Real bug**: `regulars_prev` (backing the regulars-trend diary line) was
-   only reset on New Game, never synced when continuing a save — continuing
-   an established game would falsely announce "your first regular customer."
-   Fixed in both `Game.gd` and `Town3D.gd`.
-2. Simplified away an `is_repeat` flag that was smuggled through the
-   *persisted* credit-request dict purely for UI text, when both UI scripts
-   already have direct access to `GameState.customer_relationships` and can
-   compute it directly.
-3. Simplified away an unused `refused` counter — only `paid`/`defaulted`
-   ever fed the reliability nudge, and a refusal isn't actually a signal
-   about *that customer's* trustworthiness.
-4. Reviewed and knowingly left alone: the credit-history feature necessarily
-   reorders the RNG draw sequence in `maybe_roll_credit_request()` (must
-   know the name before looking up its history) — no test or invariant
-   depends on draw-order stability across code versions.
+### `scripts/world3d/GrayboxKit.gd` (238 lines, rewritten)
+- `building()` — NEW: colliding walls + gabled `PrismMesh` roof + door and
+  window on the road-facing side. Wall mesh named `"Wall"` (a stable
+  contract — Town3D repaints it on shop expansion, now by name instead of
+  the old fragile `get_child(1)` index).
+- `person()` — upgraded: capsule body + sphere head + two angled arms
+  (`ArmL`/`ArmR`); `tint_person()` recolors arms along with the body.
+- `tree()` upgraded (trunk cylinder + two-sphere crown), `pine_tree()` NEW
+  (stacked cones), `lamp_post()` NEW (pole + emissive glowing head),
+  `crate()` NEW. Shared `_mat()` helper for materials, with an emissive
+  option.
+- `static_box`/`visual_box`/`label3d` signatures unchanged.
 
-### Phase 2 — Lightweight BusinessType architecture
+### `scripts/world3d/Town3D.gd`
+- Shop and neighbor now `building()`s with roofs (same footprints and
+  colliders as before — every interaction point constant untouched).
+- Counter gained a sloped awning and stacked stock crates beside it.
+- All five filler houses became real houses (roofs, doors, windows, varied
+  wall/roof colors; the two south-side houses face the road correctly).
+- Road gained sidewalks and center dashes; four glowing street lamps along
+  it; tree mix is now round + pine.
+- Customers spawn with varied clothing colors (cosmetic-only `randi()`,
+  which biztown-rules explicitly permits outside `GameState.rng`).
+- Shop/neighbor sign labels raised to clear the new roofs.
+- `_paint_neighbor()` uses `get_node_or_null("Wall")` — expansion repaint
+  survives any future reordering of building children.
 
-- **`scripts/business/BusinessType.gd`** — a `Resource` holding pure
-  identity + Chapter-1-scale starting-condition data (id, display name,
-  product name, shop sign text, tagline, starting cash/inventory/cost/price
-  range, customer name pool). Built via explicit property assignment, not a
-  12-argument constructor (`gdlint` correctly flagged that as error-prone;
-  fixed before committing).
-- **`scripts/business/BusinessRegistry.gd`** — static lookup (same
-  no-autoload pattern as the existing `GrayboxKit.gd`), two entries:
-  - `soap_shop` — mirrors current `SimConfig.gd` values exactly. This is
-    the real, only-playable business today.
-  - `construction_materials` — a **non-playable placeholder** (distinct
-    minimal numbers, no missions, no economy tuning, no world scene) proving
-    the data shape generalizes to a different kind of business, exactly as
-    the instruction allowed ("a second placeholder... minimal data only").
-- **`GameState.active_business_id`** — new field, persisted in
-  `to_dict()`/`from_dict()` (parity re-verified), always reset to
-  `soap_shop` today (no player-facing business-select flow exists yet, so
-  there's nothing else it could meaningfully be).
-- **Deliberately NOT done**: generalizing `SimConfig.gd`'s tuned
-  demand-curve/capacity/event formulas to be per-business-type. That's real
-  Chapter-2 engineering, and touching it now would risk the carefully-tuned
-  Chapter 1 economy for a business type that isn't playable yet — exactly
-  the "complex system before the current loop is stable" the instruction
-  said not to do.
+### `scripts/world3d/Player3D.gd`
+- The founder gained arms (matching the upgraded people).
 
-### Phase 3 — Partial (business identity visible in-world)
+## Invariants deliberately preserved
 
-`Town3D.gd`'s shop sign, the manage-panel counter title, and the
-expanded-shop sign now read from `BusinessRegistry.get_active()` instead of
-three separate hardcoded `"SOAP SHOP"`/`"SOAP SHOP II"` strings (which,
-notably, weren't even using the pre-existing-but-unused
-`SimConfig.PRODUCT_NAME` constant before this). A new-game diary now opens
-with the active business's tagline. **Zero behavior change** for the current
-game (the soap-shop strings are byte-identical) — this is a real, working
-proof that swapping `GameState.active_business_id` would visibly change the
-game's presented identity, without touching any economic formula.
+- Every `*_POS` interaction constant unchanged; every collider footprint
+  identical → walking, counter/hire/expand zones, and customer walk paths
+  behave exactly as the last on-device test.
+- Zero sim/engine changes. Zero save-format changes.
+- No imported binary assets — repo stays all-text.
 
-Not built this round: a business-select screen, additional NPC roles beyond
-what already exists (Ravi, the lender, named credit customers), and mission
-text reflecting a chosen path — these need an actual second *playable*
-business behind them to be meaningful, not just a placeholder data entry.
+## Verification
 
-## A factual correction I made rather than silently complying with
+`gdformat --check`: all 16 `.gd` files parse with zero errors (style-only
+"would reformat" diffs, as always). `gdlint scripts/world3d`: only the
+long-known `Town3D.gd` file-length flag (1100 lines) plus pre-existing
+line-length style flags — no new structural findings; the two long lines my
+own edits introduced were wrapped before commit.
 
-The instruction assumed "Current MVP can remain focused on construction
-material retail." That's not what's built — the entire existing game (every
-mission, the shop sign, `BIZTOWN_BUILD_SPEC.md`, every prior
-`HUMAN_DECISIONS.md` entry) is a **soap shop**. I flagged this directly
-rather than silently reskinning a tested, narratively-coherent game, and
-kept Soap Shop as the default/active business — using Construction
-Materials as the second *placeholder* instead, which the instruction's own
-wording explicitly permitted as an alternative.
+**Not verified by execution** — same standing gap. The visual result
+especially needs eyes: mesh proportions/colors are reasoned, not seen.
+A single screenshot of the new town from Vikash's phone confirms (or
+corrects) the whole phase.
 
-## What was tested
+## Next recommended step
 
-Nothing was executed — this cloud sandbox still has no Godot binary and no
-network path to fetch one (confirmed repeatedly this session; not
-re-litigated further). What "tested" means here:
-- `gdformat --check` across all 16 `.gd` files (14 pre-existing + 2 new)
-  before and after every change — same "would reformat" (style-only) file
-  count throughout, confirming zero new parse errors introduced.
-- `gdlint` caught one real code-smell in my own new code (the 12-arg
-  constructor) before commit — fixed immediately.
-- `GameState.to_dict()`/`from_dict()` field parity checked programmatically
-  (a small script diffing the two functions' keys), not just by eye.
-- Every fix traced by hand against the specific `tests/TestRunner.gd`
-  assertions it could plausibly affect.
-
-## What failed or could not be tested
-
-Everything that requires actually running the engine: whether the game
-boots, whether the 3D scene renders without error, whether the business
-sign text actually displays correctly at runtime, whether the regulars-sync
-fix behaves as reasoned. This is the same gap that has existed since the
-start of this session, not something new to this round.
-
-## Known risks
-
-- `Town3D.gd` is now clearly over `gdlint`'s 1000-line default guideline
-  (not re-measured exactly this round, but it was already there before these
-  changes and grew slightly more). Not addressed — further extraction risk
-  outweighs the benefit without Godot to verify a bigger refactor.
-- The business-identity wiring only reads `BusinessRegistry.get_active()`
-  at `_build_world()`/panel-build time (i.e., once, at scene `_ready()`).
-  If a save could ever set a *different* `active_business_id` than the
-  default (it can't yet — no UI sets it to anything else), the shop sign
-  built before `SaveManager.load_game()` runs during "Continue" would be
-  stale. Not fixed, because it's not reachable today; flagged so it isn't
-  forgotten when a business-select screen becomes real.
-- Balance sweep still hasn't been re-run against the customer-variety
-  event-weight changes from the prior round (`local_holiday`/`wedding_season`
-  added 12 to `EVENT_WEIGHTS`'s total) — same open item as before, unrelated
-  to this round's work but still outstanding.
-
-## Exact next recommended step
-
-Unchanged from every prior report this session, and now more urgent given
-how much has accumulated: **run `tests/TestRunner.tscn` on-device, once.**
-Every fix and every new line of code this session has been reasoned from
-static analysis and hand-traced test logic — genuinely careful, but a
-five-minute phone test would convert all of it from "should work" to
-"confirmed working," or point at exactly what doesn't.
+1. Vikash: fresh ZIP of the branch → import → **Play** → screenshot the town
+   (this phase is visual; the screenshot IS the test).
+2. Still outstanding since session start: `tests/TestRunner.tscn` first-ever
+   run.
+3. Phase 3D-3 after visual sign-off: interiors, simple walk animation
+   (arm/leg swing), ambient townsfolk.

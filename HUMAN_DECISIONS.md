@@ -117,3 +117,25 @@ foundation now, do not jump to multi-business gameplay or multiplayer yet.
   economy, and any multiplayer/networking. Building any of these before the
   current Chapter 1 loop has been confirmed working on-device would be
   exactly the premature complexity his own instructions warned against.
+
+## 2026-07-04 — Phase 3D-2 executed procedurally, not with external asset packs
+
+**Trigger:** Vikash asked to "continue Phase 3D-2 with the low-poly assets."
+
+**Decision (made by Claude, flagged openly):** the original 3D-2 plan said
+"free CC0 packs (e.g. Kenney), Vikash downloads on phone and uploads via
+GitHub web." Two practical blockers: (1) the cloud dev sandbox cannot fetch
+external asset sites (network is scoped to this repo only — same restriction
+that blocks Godot itself), and (2) importing binary `.glb` assets blind,
+with no Godot to verify scale/materials/import settings, is the highest-risk
+change type available. So Phase 3D-2 was implemented as a **procedural
+low-poly upgrade** of `GrayboxKit.gd` using only Godot built-in meshes:
+gabled prism roofs, doors/windows on houses, people with arms and varied
+clothing colors, round + pine trees, glowing street lamps, a counter awning,
+stock crates, sidewalks and road markings. Same world positions, same
+colliders, zero gameplay change; everything stays text-diffable and
+Android-GL-Compatibility-safe.
+
+**Still open to Vikash:** uploading a CC0 pack via GitHub's web UI remains
+possible any time — `GrayboxKit.gd` is still the single swap point, and the
+procedural version then becomes the fallback.
