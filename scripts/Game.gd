@@ -37,6 +37,7 @@ var total_revenue: float = 0.0
 var stock_ordered: int = 0
 var price_changes: int = 0
 var ravi_hire_day: int = -1
+var regulars_prev: int = 0
 var reflection_nodes: Array[Node] = []
 var submit_button: Button
 var q1_edit: LineEdit
@@ -149,6 +150,7 @@ func _begin_new_game() -> void:
 	GameState.current_price = price_slider.value
 	cost_today = Sim.get_current_unit_cost()
 	cost_yesterday = cost_today
+	regulars_prev = GameState.regular_count
 	_on_price_changed(price_slider.value)
 	_refresh_hud()
 	_update_buttons()
@@ -158,6 +160,7 @@ func _sync_after_load() -> void:
 	price_slider.value = GameState.current_price
 	cost_today = Sim.get_current_unit_cost()
 	cost_yesterday = cost_today
+	regulars_prev = GameState.regular_count
 	_on_price_changed(GameState.current_price)
 	_refresh_hud()
 	_update_buttons()
@@ -414,6 +417,7 @@ func _advance_day() -> void:
 	total_revenue += r.revenue
 
 	_diary_day(r)
+	_note_regulars_trend(int(r.regulars))
 
 	if drep > 0:
 		_float("Reputation +%d" % drep, REP_COL, rep_value.global_position + Vector2(0, 30))
@@ -609,6 +613,7 @@ func _on_reset_pressed() -> void:
 	total_revenue = 0.0
 	stock_ordered = 0
 	price_changes = 0
+	regulars_prev = 0
 	ravi_hire_day = -1
 	decision_queue.clear()
 	decision_active = false
@@ -665,8 +670,12 @@ func _show_next_decision() -> void:
 	match String(current_decision.kind):
 		"credit":
 			decision_title.text = "Credit request"
-			decision_body.text = "%s wants %d units of soap on credit, repaying in %d days." % [
-				String(data.name), int(data.qty), int(data.repay_in_days)]
+			if not GameState.customer_relationships.get(String(data.name), {}).is_empty():
+				decision_body.text = "%s is back, wanting %d units of soap on credit, repaying in %d days." % [
+					String(data.name), int(data.qty), int(data.repay_in_days)]
+			else:
+				decision_body.text = "A new face, %s, wants %d units of soap on credit, repaying in %d days." % [
+					String(data.name), int(data.qty), int(data.repay_in_days)]
 			decision_yes.text = "Grant credit"
 			decision_no.text = "Refuse"
 		"bulk":
@@ -823,6 +832,19 @@ func _diary_day(r: Dictionary) -> void:
 		_diary("   %d people left without buying - the wait was too long." % r.lost)
 	if r.inventory <= SimConfig.LOW_STOCK:
 		_diary("   Stock is running low. Better order more soon.")
+
+
+## Surface the existing regulars feedback loop as a felt pattern, not just a
+## number ticking on the HUD — first regular, every +5 milestone, or a drop.
+func _note_regulars_trend(new_count: int) -> void:
+	if new_count > regulars_prev:
+		if regulars_prev == 0 and new_count > 0:
+			_diary("   Word is spreading - your first regular customer.")
+		elif new_count / 5 > regulars_prev / 5:
+			_diary("   Word is spreading - %d regulars now count on your shop." % new_count)
+	elif new_count < regulars_prev:
+		_diary("   A regular gave up waiting today - that trust doesn't come back easily.")
+	regulars_prev = new_count
 
 
 func _diary(line: String) -> void:

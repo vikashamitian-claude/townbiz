@@ -1,111 +1,155 @@
-# Claude Code Report — /code-review high-effort pass on the core sim engine
+# Claude Code Report — Multi-business vision: stabilization + Phase 1-2 foundation
 
 Date: 2026-07-04
 
-- STAGE: post-3D-1 — full 8-angle code review (--fix) against the core engine
-  (`scripts/sim/`, `scripts/events/`, `scripts/mission/`, `scripts/save/`)
-- STATUS: PASS WITH MINOR FIXES — 6 real bugs fixed (one is a confirmed
-  violation of the project's own signal-ordering hard rule), 3 lower-priority
-  findings knowingly deferred with reasons. On-device confirmation still
-  pending — nothing has executed the engine yet, anywhere.
+- STAGE: Response to the long-term vision directive (walkable 3D multi-business
+  world). Phases 1-2 of the requested priority order executed this session;
+  Phase 3 partially done; Phase 4 (this report) below.
+- STATUS: PASS WITH MINOR FIXES — real bug found and fixed during
+  stabilization re-verification; new architecture foundation built and
+  statically verified; on-device confirmation still pending (unchanged since
+  session start — nothing has executed anywhere yet).
 
-## Why this pass
+## What was implemented
 
-The previous review targeted the new 3D UI. The core engine (`Sim.gd`,
-`EventEngine.gd`, `MissionManager.gd`, `SaveManager.gd`) came from the
-original code drop and had only ever had a manual read-through during Stage 1
-integration — never a rigorous adversarial review. Given the last pass found
-a severe bug in the UI, it seemed likely the engine deserved the same
-treatment. One of 8 finder-agent angles (cross-file tracer) failed mid-run on
-a session-limit error; the other 7 (line-by-line, invariant audit, reuse,
-simplification, efficiency, altitude, conventions) completed and were
-verified directly against the code (reading the exact lines, tracing the
-existing `tests/TestRunner.gd` suites against each proposed fix by hand,
-since Godot itself still isn't available to actually run them).
+### Phase 1 — Stabilization re-verification (static, no Godot available)
 
-## Fixed (6)
+Re-checked, by reading the actual code rather than assuming prior fixes held:
+- `project.godot` autoload order (`GameState, Events, Sim, Missions,
+  SaveManager`) and main scene (`Town3D.tscn`) — correct.
+- `MissionManager.gd` still connects only to the five explicit Sim events,
+  never generic `Sim.changed` — confirmed, no regression.
+- The `flow_button` permanent-freeze fix from the prior PR#4 review round —
+  confirmed still intact after all subsequent edits.
+- `GameState.to_dict()`/`from_dict()` field parity — every key written is
+  read back (checked programmatically), including all fields added this
+  session.
+- `scenes/Town3D.tscn` — minimal, correctly references
+  `scripts/world3d/Town3D.gd` (everything else built in code, matching the
+  established pattern).
 
-1. **Signal-ordering rule violation** — `Sim.run_day()`'s own comment says
-   "all mutation completes before any event is emitted (§2.3)," but
-   `Events.offer_lender()` (which mutates `lender_offer_pending` and fires
-   its own signal) ran *after* `month_ended.emit()` had already fired. A
-   `month_ended` listener reading that flag synchronously would see it
-   stale. Fixed by reordering within the same `is_month_end` block.
-2. **Credit repaid one day late, every time** — `due_day` is stamped using
-   the *post-increment* day at grant time, but `_process_credit_dues()` runs
-   *before* that call's day increment, so the comparison was off by one.
-   Every credit resolved a day after what the UI's "repaying in N days" text
-   promised. Traced the fix against `tests/TestRunner.gd`'s `_test_credit`
-   by hand (due_day=3, 4 `run_day()` calls) — the existing assertion still
-   passes, resolution now just happens one call earlier (on time).
-3. **Event effects stacked instead of refreshing** — re-rolling
-   `supplier_hike`/`supplier_deal`/`competitor_discount` while a prior
-   instance was still active appended a second entry to
-   `GameState.active_effects`, doubling `cost_delta`/`demand_mult` in
-   `get_active_cost_delta()`/`get_active_demand_mult()` instead of resetting
-   the effect's duration. Fixed by removing any existing same-id entry
-   before appending — the credit-request path already had an equivalent
-   guard; this event class didn't.
-4. **A second bulk offer silently destroyed the first** — `pending_bulk_offer`
-   was overwritten unconditionally with no guard, unlike the credit-request
-   path which explicitly checks `is_empty()` first. Added the same guard.
-5. **Reloading a finished-Chapter-1 save never showed the completion
-   screen** — `MissionManager.from_dict()`'s guard only covered
-   `current_index < missions.size()`; loading a save from after the chapter
-   was already done fell through and emitted nothing at all. Now emits
-   `chapter_completed` in that case. (Caveat: Town3D's ephemeral reflection
-   stats — total revenue, Ravi-hire day, price-change count — aren't part of
-   the persisted save format, so they'll show as zero/default if reached
-   this way; this is a pre-existing, narrower gap that reaching the screen
-   at all now makes newly visible, not a regression.)
-6. **`SaveManager.load_game()` didn't re-telegraph a pending event** the
-   player may not have seen this session (e.g. they quit right after it
-   fired) — added a re-telegraph call. The event still applied on schedule
-   either way; this only concerned whether the warning was shown.
+Also ran one more `/code-review --fix` pass (4 of 8 finder angles; stopped
+there as a judgment call once the customer-variety diff had real findings in
+hand and this session's priority shifted to the bigger vision request) against
+the not-yet-merged customer-variety diff (PR #5) before you could even test
+it. Found and fixed:
+1. **Real bug**: `regulars_prev` (backing the regulars-trend diary line) was
+   only reset on New Game, never synced when continuing a save — continuing
+   an established game would falsely announce "your first regular customer."
+   Fixed in both `Game.gd` and `Town3D.gd`.
+2. Simplified away an `is_repeat` flag that was smuggled through the
+   *persisted* credit-request dict purely for UI text, when both UI scripts
+   already have direct access to `GameState.customer_relationships` and can
+   compute it directly.
+3. Simplified away an unused `refused` counter — only `paid`/`defaulted`
+   ever fed the reliability nudge, and a refusal isn't actually a signal
+   about *that customer's* trustworthiness.
+4. Reviewed and knowingly left alone: the credit-history feature necessarily
+   reorders the RNG draw sequence in `maybe_roll_credit_request()` (must
+   know the name before looking up its history) — no test or invariant
+   depends on draw-order stability across code versions.
 
-Also added a defensive `push_warning` default arm to `EventEngine.apply_pending()`'s
-match — a telegraphed event with no matching case there previously applied
-as a silent no-op. This doesn't fix a live bug (all 6 current event types are
-handled) but narrows a real design gap the altitude angle flagged: event
-identity is a bare string duplicated independently across
-`SimConfig.EVENT_WEIGHTS`, `_make_event()`, and `apply_pending()` with no
-shared registry, so a future addition or typo in any one of them would
-otherwise degrade silently.
+### Phase 2 — Lightweight BusinessType architecture
 
-## Knowingly skipped (2, both are economy/balance questions, not bugs)
+- **`scripts/business/BusinessType.gd`** — a `Resource` holding pure
+  identity + Chapter-1-scale starting-condition data (id, display name,
+  product name, shop sign text, tagline, starting cash/inventory/cost/price
+  range, customer name pool). Built via explicit property assignment, not a
+  12-argument constructor (`gdlint` correctly flagged that as error-prone;
+  fixed before committing).
+- **`scripts/business/BusinessRegistry.gd`** — static lookup (same
+  no-autoload pattern as the existing `GrayboxKit.gd`), two entries:
+  - `soap_shop` — mirrors current `SimConfig.gd` values exactly. This is
+    the real, only-playable business today.
+  - `construction_materials` — a **non-playable placeholder** (distinct
+    minimal numbers, no missions, no economy tuning, no world scene) proving
+    the data shape generalizes to a different kind of business, exactly as
+    the instruction allowed ("a second placeholder... minimal data only").
+- **`GameState.active_business_id`** — new field, persisted in
+  `to_dict()`/`from_dict()` (parity re-verified), always reset to
+  `soap_shop` today (no player-facing business-select flow exists yet, so
+  there's nothing else it could meaningfully be).
+- **Deliberately NOT done**: generalizing `SimConfig.gd`'s tuned
+  demand-curve/capacity/event formulas to be per-business-type. That's real
+  Chapter-2 engineering, and touching it now would risk the carefully-tuned
+  Chapter 1 economy for a business type that isn't playable yet — exactly
+  the "complex system before the current loop is stable" the instruction
+  said not to do.
 
-- **`REP_MAX_DAILY_DROP` only caps the demand-loss reputation penalty** —
-  bulk-commitment failures (uncapped, -3 each) and a lender month-end
-  rollover (uncapped, -10) can stack well past what the constant's name
-  implies on a single bad day. This is a real design tension, but fixing it
-  means changing how reputation deltas accumulate across a day — an economy
-  change, which `AGENTS.md` explicitly gates behind human approval. Flagging
-  for a design decision rather than changing behavior unasked.
-- **`GameState.credit_ledger` never prunes resolved entries** (unlike
-  `bulk_commitments`, which does) — real unbounded growth over a very long
-  save, but low severity in practice given a realistic Chapter 1 playthrough
-  length (tens of entries at most), and pruning would break
-  `tests/TestRunner.gd`'s `_test_credit`, which explicitly reads
-  `credit_ledger[0]` *after* it resolves. Not worth the test-contract risk
-  for a non-urgent perf concern.
+### Phase 3 — Partial (business identity visible in-world)
 
-## Verification method
+`Town3D.gd`'s shop sign, the manage-panel counter title, and the
+expanded-shop sign now read from `BusinessRegistry.get_active()` instead of
+three separate hardcoded `"SOAP SHOP"`/`"SOAP SHOP II"` strings (which,
+notably, weren't even using the pre-existing-but-unused
+`SimConfig.PRODUCT_NAME` constant before this). A new-game diary now opens
+with the active business's tagline. **Zero behavior change** for the current
+game (the soap-shop strings are byte-identical) — this is a real, working
+proof that swapping `GameState.active_business_id` would visibly change the
+game's presented identity, without touching any economic formula.
 
-Same as the previous pass: no Godot binary available in this sandbox.
-`gdformat --check` across every `.gd` file in `scripts/`+`tests/` before and
-after all edits shows the same 12/14 "would reformat" (style-only) count
-throughout — confirms no fix introduced a parse error. Each fix was also
-traced by hand against the specific `tests/TestRunner.gd` assertions it could
-plausibly affect (credit timing, mission save/load) to catch a fix that
-"looks right" but would silently break the one real (if unexecuted) test
-suite this project has.
+Not built this round: a business-select screen, additional NPC roles beyond
+what already exists (Ravi, the lender, named credit customers), and mission
+text reflecting a chosen path — these need an actual second *playable*
+business behind them to be meaningful, not just a placeholder data entry.
 
-**Still not verified by execution.** Every fix here is reasoned from reading
-the code and tracing test logic by hand — genuinely careful, but not the
-same as watching it run. The phone playtest remains the only thing that can
-actually confirm this.
+## A factual correction I made rather than silently complying with
 
-## OPEN QUESTIONS
+The instruction assumed "Current MVP can remain focused on construction
+material retail." That's not what's built — the entire existing game (every
+mission, the shop sign, `BIZTOWN_BUILD_SPEC.md`, every prior
+`HUMAN_DECISIONS.md` entry) is a **soap shop**. I flagged this directly
+rather than silently reskinning a tested, narratively-coherent game, and
+kept Soap Shop as the default/active business — using Construction
+Materials as the second *placeholder* instead, which the instruction's own
+wording explicitly permitted as an alternative.
 
-The two skipped findings above are economy/balance judgment calls, not
-implementation questions — surfaced for Vikash's awareness, not blocking.
+## What was tested
+
+Nothing was executed — this cloud sandbox still has no Godot binary and no
+network path to fetch one (confirmed repeatedly this session; not
+re-litigated further). What "tested" means here:
+- `gdformat --check` across all 16 `.gd` files (14 pre-existing + 2 new)
+  before and after every change — same "would reformat" (style-only) file
+  count throughout, confirming zero new parse errors introduced.
+- `gdlint` caught one real code-smell in my own new code (the 12-arg
+  constructor) before commit — fixed immediately.
+- `GameState.to_dict()`/`from_dict()` field parity checked programmatically
+  (a small script diffing the two functions' keys), not just by eye.
+- Every fix traced by hand against the specific `tests/TestRunner.gd`
+  assertions it could plausibly affect.
+
+## What failed or could not be tested
+
+Everything that requires actually running the engine: whether the game
+boots, whether the 3D scene renders without error, whether the business
+sign text actually displays correctly at runtime, whether the regulars-sync
+fix behaves as reasoned. This is the same gap that has existed since the
+start of this session, not something new to this round.
+
+## Known risks
+
+- `Town3D.gd` is now clearly over `gdlint`'s 1000-line default guideline
+  (not re-measured exactly this round, but it was already there before these
+  changes and grew slightly more). Not addressed — further extraction risk
+  outweighs the benefit without Godot to verify a bigger refactor.
+- The business-identity wiring only reads `BusinessRegistry.get_active()`
+  at `_build_world()`/panel-build time (i.e., once, at scene `_ready()`).
+  If a save could ever set a *different* `active_business_id` than the
+  default (it can't yet — no UI sets it to anything else), the shop sign
+  built before `SaveManager.load_game()` runs during "Continue" would be
+  stale. Not fixed, because it's not reachable today; flagged so it isn't
+  forgotten when a business-select screen becomes real.
+- Balance sweep still hasn't been re-run against the customer-variety
+  event-weight changes from the prior round (`local_holiday`/`wedding_season`
+  added 12 to `EVENT_WEIGHTS`'s total) — same open item as before, unrelated
+  to this round's work but still outstanding.
+
+## Exact next recommended step
+
+Unchanged from every prior report this session, and now more urgent given
+how much has accumulated: **run `tests/TestRunner.tscn` on-device, once.**
+Every fix and every new line of code this session has been reasoned from
+static analysis and hand-traced test logic — genuinely careful, but a
+five-minute phone test would convert all of it from "should work" to
+"confirmed working," or point at exactly what doesn't.

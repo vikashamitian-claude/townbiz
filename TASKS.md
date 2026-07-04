@@ -72,6 +72,53 @@ Status: **Phase 3D-1 code complete — awaiting on-device verification**
    Vikash downloads on phone, uploads via GitHub web).
 3. [ ] **Phase 3D-3** — interiors, character variety, town life polish.
 
+## Sprint CE - Customer experience variety (owner-approved, HUMAN_DECISIONS.md)
+
+Status: **Code complete, execution verification pending (same blocker as above)**
+
+Not machine learning (asked and clarified) — richer content within the existing engine.
+
+1. [x] Two new day events: `local_holiday` (1-day demand dip), `wedding_season`
+   (2-day demand boost). `SimConfig.gd`, `scripts/events/EventEngine.gd`.
+2. [x] Recurring customer memory: named credit customers build a track record
+   (`GameState.customer_relationships`) that nudges their next reliability
+   roll; both UIs flag repeat vs. new names in the credit modal.
+3. [x] Regulars trend surfaced as diary/log lines (first regular, +5
+   milestones, drops) in both `Game.gd` and `Town3D.gd`.
+4. [ ] Re-run the balance sweep once Godot is available — adding two event
+   weights shifts every event's relative frequency slightly; §9 targets
+   should be reconfirmed.
+
+## Sprint BIZ - Multi-business architecture foundation (owner-set long-term direction, HUMAN_DECISIONS.md)
+
+Status: **Phase 1-2 code complete, execution verification pending (same blocker as above)**
+
+Long-term direction: a walkable 3D world of multiple connected business
+types. Chapter 1 stays scoped to one playable business (`BIZTOWN_BUILD_SPEC.md`
+still governs what's playable today) — this sprint only builds the
+foundation, disciplined per Vikash's own phased instruction.
+
+1. [x] **Phase 1 stabilization re-verification** — re-checked (statically):
+   autoload order, main scene, mission signals only on the five events (never
+   generic `changed`), the flow_button freeze fix still intact, save/load
+   field parity (including new fields), 3D scene structure.
+2. [x] **Phase 2 — lightweight BusinessType architecture.**
+   `scripts/business/BusinessType.gd` (pure data: identity + starting
+   numbers) + `scripts/business/BusinessRegistry.gd` (static lookup:
+   `soap_shop` = current game exactly, `construction_materials` = minimal
+   non-playable placeholder proving the shape generalizes).
+   `GameState.active_business_id` added, persisted, always `soap_shop` on
+   reset (no business-select flow exists yet).
+3. [x] **Phase 3 (partial) — business identity visible in-world.**
+   `Town3D.gd`'s shop sign, counter title, expanded-shop sign, and new-game
+   diary opener now read from the active business type instead of hardcoded
+   strings. Zero behavior change for the current game.
+4. [ ] **Not done — real future work, not forgotten:** business-select
+   screen/menu; a second business type actually playable (its own missions,
+   economy tuning, NPCs, world zone); connecting businesses into one economy;
+   any multiplayer/networking. None of these should start before Chapter 1
+   is confirmed working on-device.
+
 ## Backlog
 
 - Staff hiring

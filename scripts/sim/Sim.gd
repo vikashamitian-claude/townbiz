@@ -328,8 +328,10 @@ func _process_credit_dues() -> Dictionary:
 			GameState.cash += float(entry.amount)
 			_apply_reputation_change(SimConfig.CREDIT_PAID_REP_GAIN, true)
 			GameState.regular_count = mini(GameState.regular_count + 1, SimConfig.REGULAR_CAP)
+			GameState.record_customer_outcome(String(entry.name), "paid")
 			paid += 1
 		else:
 			GameState.cash += float(entry.amount) * SimConfig.CREDIT_DEFAULT_PAY_FRACTION
+			GameState.record_customer_outcome(String(entry.name), "defaulted")
 			defaulted += 1
 	return { "paid": paid, "defaulted": defaulted }

@@ -100,6 +100,8 @@ const EVENT_WEIGHTS: Dictionary = {
 	"supplier_deal": 6,
 	"competitor_discount": 8,
 	"bulk_order_offer": 8,
+	"local_holiday": 6,
+	"wedding_season": 6,
 }
 
 # --- Event effect parameters ---
@@ -111,3 +113,15 @@ const DEAL_COST_DELTA: float = -5.0
 const DEAL_DURATION_DAYS: int = 3
 const COMPETITOR_DEMAND_MULT: float = 0.75
 const COMPETITOR_DURATION_DAYS: int = 3
+const HOLIDAY_DEMAND_MULT: float = 0.65      # one-day: shutters half-closed, fewer people out
+const WEDDING_DEMAND_MULT: float = 1.35      # multi-day: wedding season, everyone buying soap
+const WEDDING_DURATION_DAYS: int = 2
+
+# --- Customer memory: repeat credit customers nudge toward their own history ---
+const CREDIT_HISTORY_PAID_BONUS: float = 0.05      # per past on-time repayment
+const CREDIT_HISTORY_DEFAULT_PENALTY: float = 0.12 # per past default
+# Wider than CREDIT_RELIABILITY_MIN/MAX on purpose: those bound the fresh roll,
+# these bound the roll AFTER a repeat customer's history nudges it — a serial
+# defaulter must be able to actually read as untrustworthy, not snap back.
+const CREDIT_RELIABILITY_HARD_MIN: float = 0.05
+const CREDIT_RELIABILITY_HARD_MAX: float = 0.99

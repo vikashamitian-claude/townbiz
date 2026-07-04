@@ -4,6 +4,10 @@ extends Node
 
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
+# Business path (foundation for multiple business types — see HUMAN_DECISIONS.md
+# and scripts/business/. Chapter 1 only ever plays "soap_shop" today.)
+var active_business_id: String
+
 var cash: float
 var reputation: float
 var day: int
@@ -27,6 +31,7 @@ var credit_ledger: Array = []    # [{name, qty, amount, due_day, reliability, re
 var bulk_commitments: Array = [] # [{qty, unit_price, days_left}]
 var pending_credit_request: Dictionary = {}  # awaiting player choice ({} = none)
 var pending_bulk_offer: Dictionary = {}      # awaiting player choice ({} = none)
+var customer_relationships: Dictionary = {}  # name -> {paid: int, defaulted: int, refused: int}
 
 # Lender
 var lender_debt: float           # 0 = no debt; repay due at next month-end
@@ -43,6 +48,9 @@ func reset(seed_value: int = -1) -> void:
 		rng.seed = seed_value
 	else:
 		rng.randomize()
+	# Always the default for now — there is no player-facing business-select
+	# screen yet, so every reset starts Chapter 1's one playable business.
+	active_business_id = BusinessRegistry.DEFAULT_ID
 	cash = SimConfig.STARTING_CASH
 	reputation = SimConfig.STARTING_REPUTATION
 	day = 0
@@ -62,6 +70,7 @@ func reset(seed_value: int = -1) -> void:
 	bulk_commitments = []
 	pending_credit_request = {}
 	pending_bulk_offer = {}
+	customer_relationships = {}
 	lender_debt = 0.0
 	lender_offer_pending = false
 
@@ -73,10 +82,23 @@ func add_trait(dimension: String, value: String) -> void:
 	traits[dimension][value] = int(traits[dimension].get(value, 0)) + 1
 
 
+## Record a named customer's credit outcome ("paid"/"defaulted"). Pure
+## bookkeeping — EventEngine.gd reads this back to nudge that customer's next
+## reliability roll; the nudge math itself lives there, not here. (Refusals
+## aren't tracked: refusing someone is a fact about the player's caution,
+## not a signal about that customer's own trustworthiness.)
+func record_customer_outcome(customer_name: String, outcome: String) -> void:
+	if not customer_relationships.has(customer_name):
+		customer_relationships[customer_name] = {"paid": 0, "defaulted": 0}
+	var rec: Dictionary = customer_relationships[customer_name]
+	rec[outcome] = int(rec.get(outcome, 0)) + 1
+
+
 ## Full serializable snapshot (used by SaveManager).
 func to_dict() -> Dictionary:
 	return {
 		"version": 1,
+		"active_business_id": active_business_id,
 		"rng_seed": rng.seed,
 		"rng_state": rng.state,
 		"cash": cash, "reputation": reputation, "day": day,
@@ -89,12 +111,14 @@ func to_dict() -> Dictionary:
 		"credit_ledger": credit_ledger, "bulk_commitments": bulk_commitments,
 		"pending_credit_request": pending_credit_request,
 		"pending_bulk_offer": pending_bulk_offer,
+		"customer_relationships": customer_relationships,
 		"lender_debt": lender_debt, "lender_offer_pending": lender_offer_pending,
 	}
 
 
 ## Restore from a snapshot produced by to_dict().
 func from_dict(d: Dictionary) -> void:
+	active_business_id = String(d.get("active_business_id", BusinessRegistry.DEFAULT_ID))
 	rng.seed = int(d.get("rng_seed", 0))
 	rng.state = int(d.get("rng_state", 0))
 	cash = float(d.get("cash", SimConfig.STARTING_CASH))
@@ -116,5 +140,6 @@ func from_dict(d: Dictionary) -> void:
 	bulk_commitments = d.get("bulk_commitments", [])
 	pending_credit_request = d.get("pending_credit_request", {})
 	pending_bulk_offer = d.get("pending_bulk_offer", {})
+	customer_relationships = d.get("customer_relationships", {})
 	lender_debt = float(d.get("lender_debt", 0.0))
 	lender_offer_pending = bool(d.get("lender_offer_pending", false))
