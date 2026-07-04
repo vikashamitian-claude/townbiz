@@ -1,111 +1,110 @@
-# Claude Code Report — /code-review high-effort pass on the core sim engine
+# Claude Code Report — "Living Business" content expansion (customer variety)
 
 Date: 2026-07-04
 
-- STAGE: post-3D-1 — full 8-angle code review (--fix) against the core engine
-  (`scripts/sim/`, `scripts/events/`, `scripts/mission/`, `scripts/save/`)
-- STATUS: PASS WITH MINOR FIXES — 6 real bugs fixed (one is a confirmed
-  violation of the project's own signal-ordering hard rule), 3 lower-priority
-  findings knowingly deferred with reasons. On-device confirmation still
-  pending — nothing has executed the engine yet, anywhere.
+- STAGE: post-review content pass — more day-event variety, recurring customer
+  memory, and felt regulars feedback (Vikash's explicit request, scoped via
+  AskUserQuestion to "smarter/varied customer behavior" — not real ML)
+- STATUS: PASS WITH MINOR FIXES — new content wired end-to-end and statically
+  verified; on-device confirmation still pending (nothing has executed yet,
+  same as every prior stage this session)
 
-## Why this pass
+## What was asked and why this shape
 
-The previous review targeted the new 3D UI. The core engine (`Sim.gd`,
-`EventEngine.gd`, `MissionManager.gd`, `SaveManager.gd`) came from the
-original code drop and had only ever had a manual read-through during Stage 1
-integration — never a rigorous adversarial review. Given the last pass found
-a severe bug in the UI, it seemed likely the engine deserved the same
-treatment. One of 8 finder-agent angles (cross-file tracer) failed mid-run on
-a session-limit error; the other 7 (line-by-line, invariant audit, reuse,
-simplification, efficiency, altitude, conventions) completed and were
-verified directly against the code (reading the exact lines, tracing the
-existing `tests/TestRunner.gd` suites against each proposed fix by hand,
-since Godot itself still isn't available to actually run them).
+Vikash asked whether ML could give an "automatic customer experience."
+Clarified via two rounds of AskUserQuestion: he wants richer/more varied
+customer behavior, not literal machine learning (Godot has no practical
+on-device ML runtime for mobile, and the existing noise/archetype system
+already achieves "feels alive" without it — see BIZTOWN_BUILD_SPEC.md). He
+picked all three concrete options offered:
 
-## Fixed (6)
+1. More day events
+2. Customers who feel like recurring people (credit history/memory)
+3. Demand/regulars feedback surfaced as felt diary patterns, not just numbers
 
-1. **Signal-ordering rule violation** — `Sim.run_day()`'s own comment says
-   "all mutation completes before any event is emitted (§2.3)," but
-   `Events.offer_lender()` (which mutates `lender_offer_pending` and fires
-   its own signal) ran *after* `month_ended.emit()` had already fired. A
-   `month_ended` listener reading that flag synchronously would see it
-   stale. Fixed by reordering within the same `is_month_end` block.
-2. **Credit repaid one day late, every time** — `due_day` is stamped using
-   the *post-increment* day at grant time, but `_process_credit_dues()` runs
-   *before* that call's day increment, so the comparison was off by one.
-   Every credit resolved a day after what the UI's "repaying in N days" text
-   promised. Traced the fix against `tests/TestRunner.gd`'s `_test_credit`
-   by hand (due_day=3, 4 `run_day()` calls) — the existing assertion still
-   passes, resolution now just happens one call earlier (on time).
-3. **Event effects stacked instead of refreshing** — re-rolling
-   `supplier_hike`/`supplier_deal`/`competitor_discount` while a prior
-   instance was still active appended a second entry to
-   `GameState.active_effects`, doubling `cost_delta`/`demand_mult` in
-   `get_active_cost_delta()`/`get_active_demand_mult()` instead of resetting
-   the effect's duration. Fixed by removing any existing same-id entry
-   before appending — the credit-request path already had an equivalent
-   guard; this event class didn't.
-4. **A second bulk offer silently destroyed the first** — `pending_bulk_offer`
-   was overwritten unconditionally with no guard, unlike the credit-request
-   path which explicitly checks `is_empty()` first. Added the same guard.
-5. **Reloading a finished-Chapter-1 save never showed the completion
-   screen** — `MissionManager.from_dict()`'s guard only covered
-   `current_index < missions.size()`; loading a save from after the chapter
-   was already done fell through and emitted nothing at all. Now emits
-   `chapter_completed` in that case. (Caveat: Town3D's ephemeral reflection
-   stats — total revenue, Ravi-hire day, price-change count — aren't part of
-   the persisted save format, so they'll show as zero/default if reached
-   this way; this is a pre-existing, narrower gap that reaching the screen
-   at all now makes newly visible, not a regression.)
-6. **`SaveManager.load_game()` didn't re-telegraph a pending event** the
-   player may not have seen this session (e.g. they quit right after it
-   fired) — added a re-telegraph call. The event still applied on schedule
-   either way; this only concerned whether the warning was shown.
+## What was built
 
-Also added a defensive `push_warning` default arm to `EventEngine.apply_pending()`'s
-match — a telegraphed event with no matching case there previously applied
-as a silent no-op. This doesn't fix a live bug (all 6 current event types are
-handled) but narrows a real design gap the altitude angle flagged: event
-identity is a bare string duplicated independently across
-`SimConfig.EVENT_WEIGHTS`, `_make_event()`, and `apply_pending()` with no
-shared registry, so a future addition or typo in any one of them would
-otherwise degrade silently.
+### 1. Two new day events (`SimConfig.gd`, `EventEngine.gd`)
+- `local_holiday` — one-day demand ×0.65 (shutters half-down), same mechanism
+  as `festival_rush`/`heavy_rain`.
+- `wedding_season` — 2-day demand ×1.35, same mechanism as
+  `supplier_hike`/`supplier_deal`/`competitor_discount`.
+Both reuse existing effect machinery exactly — no new mechanic, no Sim.gd
+changes needed for these two. Added at weight 6 each to `EVENT_WEIGHTS`.
 
-## Knowingly skipped (2, both are economy/balance questions, not bugs)
+**Balance note:** adding two new weighted events (total weight 100→112)
+proportionally lowers every other event's frequency, including `none`
+(55/100→55/112, ~49%). This is an inherent, expected consequence of "add
+more variety," not a hidden tuning change — but it does mean
+`tests/BalanceSweep.gd`'s targets (~70% survive Month-End without the lender,
+expansion affordable day 40-55) should be re-checked once it can actually run,
+since the event mix shifted.
 
-- **`REP_MAX_DAILY_DROP` only caps the demand-loss reputation penalty** —
-  bulk-commitment failures (uncapped, -3 each) and a lender month-end
-  rollover (uncapped, -10) can stack well past what the constant's name
-  implies on a single bad day. This is a real design tension, but fixing it
-  means changing how reputation deltas accumulate across a day — an economy
-  change, which `AGENTS.md` explicitly gates behind human approval. Flagging
-  for a design decision rather than changing behavior unasked.
-- **`GameState.credit_ledger` never prunes resolved entries** (unlike
-  `bulk_commitments`, which does) — real unbounded growth over a very long
-  save, but low severity in practice given a realistic Chapter 1 playthrough
-  length (tens of entries at most), and pruning would break
-  `tests/TestRunner.gd`'s `_test_credit`, which explicitly reads
-  `credit_ledger[0]` *after* it resolves. Not worth the test-contract risk
-  for a non-urgent perf concern.
+### 2. Recurring customer memory (`GameState.gd`, `EventEngine.gd`, `Sim.gd`)
+- New `GameState.customer_relationships: Dictionary` (name → `{paid,
+  defaulted, refused}` counts), persisted in `to_dict()`/`from_dict()`.
+- New `GameState.record_customer_outcome(name, outcome)` — thin bookkeeping,
+  same shape as the existing `add_trait()` helper.
+- `EventEngine.maybe_roll_credit_request()` now nudges a freshly-rolled
+  reliability value by that customer's history (`CREDIT_HISTORY_PAID_BONUS`
+  = +0.05/past payment, `CREDIT_HISTORY_DEFAULT_PENALTY` = -0.12/past
+  default — both new `SimConfig` constants), clamped to a wider
+  `CREDIT_RELIABILITY_HARD_MIN/MAX` range (0.05-0.99) than the fresh-roll
+  range (0.6-0.95) — deliberately wider, so a serial defaulter can actually
+  read as untrustworthy instead of snapping back to the same band. The
+  request dict now also carries `is_repeat: bool` for the UI.
+- `Sim.gd`'s `grant_credit()`/`refuse_credit()`/`_process_credit_dues()` now
+  call `record_customer_outcome()` on refuse/paid/defaulted.
+- Both `Game.gd` and `Town3D.gd`'s credit modal text now reads differently
+  for a repeat vs. new name ("X is back, wanting..." vs. "A new face, X,
+  wants...").
+
+### 3. Regulars trend surfaced as diary/log lines (`Game.gd`, `Town3D.gd`)
+New `_note_regulars_trend()` in both UIs (mirrored, since `Game.gd` is the
+2D fallback and `Town3D.gd` is the active 3D build): logs "your first regular
+customer" on the first one, "N regulars now count on your shop" on every
++5 milestone, and "a regular gave up waiting today" on any drop. Pure
+presentation — reads `result.regulars` from the existing `Sim.run_day()`
+result dict, no engine changes.
+
+## Architecture notes (kept inside existing boundaries)
+
+- All new tunables live in `SimConfig.gd` only.
+- Reputation/cash/regular-count mutation still happens exclusively in
+  `Sim.gd`; `EventEngine.gd` only supplies data (the reliability roll,
+  `is_repeat` flag) — it doesn't mutate reputation or cash itself.
+- `GameState.record_customer_outcome()` is bookkeeping only (same shape as
+  the pre-existing `add_trait()`), not decision logic.
+- Verified by hand against `tests/TestRunner.gd`'s `_test_credit()`: it
+  constructs `pending_credit_request` directly (bypassing
+  `maybe_roll_credit_request()`), so the new history-nudge path isn't
+  exercised by that test and doesn't change its assertions; `grant_credit()`/
+  `refuse_credit()` gained a new side effect (recording history) that no
+  existing assertion checks, so nothing breaks.
+
+## FILES CHANGED
+
+`scripts/sim/SimConfig.gd`, `scripts/sim/GameState.gd`, `scripts/sim/Sim.gd`,
+`scripts/events/EventEngine.gd`, `scripts/Game.gd`, `scripts/world3d/Town3D.gd`
 
 ## Verification method
 
-Same as the previous pass: no Godot binary available in this sandbox.
-`gdformat --check` across every `.gd` file in `scripts/`+`tests/` before and
-after all edits shows the same 12/14 "would reformat" (style-only) count
-throughout — confirms no fix introduced a parse error. Each fix was also
-traced by hand against the specific `tests/TestRunner.gd` assertions it could
-plausibly affect (credit timing, mission save/load) to catch a fix that
-"looks right" but would silently break the one real (if unexecuted) test
-suite this project has.
+Same as every stage this session: no Godot binary available. `gdformat
+--check` across every `.gd` file shows the same 12/14 "would reformat"
+(style-only) count as before these changes — confirms no new parse error.
+`gdlint` flags are the expected consequences of adding real content
+(`_make_event`'s return-statement count went up; `Town3D.gd` is back over
+1000 lines) — not addressed further this round to avoid speculative
+extraction on top of an already-large diff; noted rather than hidden.
 
-**Still not verified by execution.** Every fix here is reasoned from reading
-the code and tracing test logic by hand — genuinely careful, but not the
-same as watching it run. The phone playtest remains the only thing that can
-actually confirm this.
+**Still not verified by execution.** This is genuinely new gameplay content on
+top of everything else this session — the on-device test run matters more
+than ever now. Recommend, in order: run `tests/TestRunner.tscn` first (still
+its first-ever execution), then play through at least one credit cycle twice
+(grant it, let it resolve, then get offered credit by the *same* name again)
+to feel whether the repeat-customer nudge reads as intended.
 
 ## OPEN QUESTIONS
 
-The two skipped findings above are economy/balance judgment calls, not
-implementation questions — surfaced for Vikash's awareness, not blocking.
+None blocking — the balance-sweep re-check noted above is a "do when you can
+run it" item, not a decision needed now.

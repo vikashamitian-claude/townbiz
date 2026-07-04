@@ -72,6 +72,23 @@ Status: **Phase 3D-1 code complete — awaiting on-device verification**
    Vikash downloads on phone, uploads via GitHub web).
 3. [ ] **Phase 3D-3** — interiors, character variety, town life polish.
 
+## Sprint CE - Customer experience variety (owner-approved, HUMAN_DECISIONS.md)
+
+Status: **Code complete, execution verification pending (same blocker as above)**
+
+Not machine learning (asked and clarified) — richer content within the existing engine.
+
+1. [x] Two new day events: `local_holiday` (1-day demand dip), `wedding_season`
+   (2-day demand boost). `SimConfig.gd`, `scripts/events/EventEngine.gd`.
+2. [x] Recurring customer memory: named credit customers build a track record
+   (`GameState.customer_relationships`) that nudges their next reliability
+   roll; both UIs flag repeat vs. new names in the credit modal.
+3. [x] Regulars trend surfaced as diary/log lines (first regular, +5
+   milestones, drops) in both `Game.gd` and `Town3D.gd`.
+4. [ ] Re-run the balance sweep once Godot is available — adding two event
+   weights shifts every event's relative frequency slightly; §9 targets
+   should be reconfirmed.
+
 ## Backlog
 
 - Staff hiring

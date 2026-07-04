@@ -50,6 +50,7 @@ var total_revenue: float = 0.0
 var stock_ordered: int = 0
 var ravi_hire_day: int = -1
 var price_changes: int = 0
+var regulars_prev: int = 0
 var submit_button: Button
 var q1_edit: LineEdit
 var q2_edit: LineEdit
@@ -575,6 +576,7 @@ func _advance_day() -> void:
 
 	_log("Day %d: %d bought soap (Rs %d)%s" % [r.day, r.served, int(r.revenue),
 		(", %d walked away" % r.lost) if int(r.lost) > 0 else ""])
+	_note_regulars_trend(int(r.regulars))
 
 	var drep: int = int(round(GameState.reputation - rep_before))
 	if drep != 0:
@@ -778,8 +780,12 @@ func _show_next_decision() -> void:
 	match String(current_decision.kind):
 		"credit":
 			decision_title.text = "Credit request"
-			decision_body.text = "%s wants %d units of soap on credit, repaying in %d days." % [
-				String(data.name), int(data.qty), int(data.repay_in_days)]
+			if bool(data.get("is_repeat", false)):
+				decision_body.text = "%s is back, wanting %d units of soap on credit, repaying in %d days." % [
+					String(data.name), int(data.qty), int(data.repay_in_days)]
+			else:
+				decision_body.text = "A new face, %s, wants %d units of soap on credit, repaying in %d days." % [
+					String(data.name), int(data.qty), int(data.repay_in_days)]
 			decision_yes.text = "Grant credit"
 			decision_no.text = "Refuse"
 		"bulk":
@@ -990,6 +996,7 @@ func _on_reset_pressed() -> void:
 	stock_ordered = 0
 	ravi_hire_day = -1
 	price_changes = 0
+	regulars_prev = 0
 	decision_queue.clear()
 	decision_active = false
 	decision_overlay.visible = false
@@ -1027,6 +1034,19 @@ func _log(line: String) -> void:
 	while log_lines.size() > LOG_MAX:
 		log_lines.pop_front()
 	log_label.text = "\n".join(PackedStringArray(log_lines))
+
+
+## Surface the existing regulars feedback loop as a felt pattern, not just a
+## number ticking on the HUD — first regular, every +5 milestone, or a drop.
+func _note_regulars_trend(new_count: int) -> void:
+	if new_count > regulars_prev:
+		if regulars_prev == 0 and new_count > 0:
+			_log("Word is spreading - your first regular customer.")
+		elif new_count / 5 > regulars_prev / 5:
+			_log("Word is spreading - %d regulars now count on your shop." % new_count)
+	elif new_count < regulars_prev:
+		_log("A regular gave up waiting today - that trust doesn't come back easily.")
+	regulars_prev = new_count
 
 
 func _float(text: String, color: Color, pos: Vector2) -> void:

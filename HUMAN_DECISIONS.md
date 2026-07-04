@@ -36,3 +36,36 @@ phone-based workflow, replace only the presentation layer.
 2. **Phase 3D-2:** replace graybox with free CC0 low-poly assets (e.g. Kenney
    packs; Vikash can download on phone and upload via GitHub web).
 3. **Phase 3D-3:** character/animation polish, interiors, town life.
+
+## 2026-07-04 — Customer-experience content expansion (APPROVED by Vikash)
+
+**Trigger:** Vikash asked whether ML could "automatically give the customer
+experience." Clarified via two rounds of AskUserQuestion: not literal ML
+(no practical on-device runtime for a mobile Godot game, and the existing
+noise/archetype system already delivers "feels alive" without it) — he wants
+richer/more varied customer behavior. He picked all three options offered:
+more day events, customers who feel like recurring people, and demand/regulars
+feedback surfaced as felt patterns rather than raw numbers.
+
+**Decision record:**
+- Two new day events added (`local_holiday`, `wedding_season`), reusing the
+  existing one-day/multi-day effect mechanisms exactly — no new mechanic.
+- Named credit customers now have persistent memory
+  (`GameState.customer_relationships`): repeat payers nudge more trustworthy,
+  repeat defaulters nudge less, both clamped to a wider range than the
+  fresh-roll band so the effect is actually felt. Persisted in saves.
+- Regulars growth/loss surfaced as diary lines (first regular, +5 milestones,
+  drops) in both `Game.gd` and `Town3D.gd`.
+- Architecture boundaries preserved: all new tunables in `SimConfig.gd`;
+  `EventEngine.gd` still only supplies data, `Sim.gd` still owns all
+  mutation; `GameState`'s new helper is bookkeeping only (same shape as the
+  existing `add_trait()`).
+- This is content growth beyond the original `BIZTOWN_BUILD_SPEC.md` mission
+  set — approved directly by the product owner in this exchange, not guessed.
+- Real ML (on-device inference, LLM-generated text, a model that trains on
+  player behavior): NOT approved, not built. If wanted later, that's a
+  separate, larger architectural decision.
+- Balance impact flagged, not silently absorbed: adding two new weighted
+  events shifts every other event's relative frequency (including "none")
+  down slightly. `tests/BalanceSweep.gd`'s §9 targets should be re-checked
+  once it can actually run.

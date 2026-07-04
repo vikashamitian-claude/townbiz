@@ -55,6 +55,13 @@ func _make_event(id: String) -> Dictionary:
 			var margin: float = GameState.rng.randf_range(SimConfig.BULK_MARGIN_MIN, SimConfig.BULK_MARGIN_MAX)
 			return { "id": id, "qty": qty, "margin": margin, "duration": 0,
 				"telegraph": "A lodge manager asked about buying soap in bulk. He'll come tomorrow." }
+		"local_holiday":
+			return { "id": id, "demand_mult": SimConfig.HOLIDAY_DEMAND_MULT, "duration": 1,
+				"telegraph": "Tomorrow's a local holiday — most shutters will stay half-down." }
+		"wedding_season":
+			return { "id": id, "demand_mult": SimConfig.WEDDING_DEMAND_MULT,
+				"duration": SimConfig.WEDDING_DURATION_DAYS,
+				"telegraph": "Wedding season is starting — everyone's stocking up on soap." }
 		_:
 			return {}
 
@@ -73,9 +80,9 @@ func apply_pending(event: Dictionary) -> float:
 	event_applied.emit(event)
 	var one_day_mult: float = 1.0
 	match String(event.get("id", "")):
-		"festival_rush", "heavy_rain":
+		"festival_rush", "heavy_rain", "local_holiday":
 			one_day_mult = float(event.get("demand_mult", 1.0))
-		"supplier_hike", "supplier_deal", "competitor_discount":
+		"supplier_hike", "supplier_deal", "competitor_discount", "wedding_season":
 			# Refresh rather than stack: re-rolling the same effect while a prior
 			# instance is still active should reset its duration/magnitude, not
 			# add a second copy on top (which would double the cost_delta/demand_mult).
@@ -136,11 +143,22 @@ func maybe_roll_credit_request() -> void:
 	if GameState.rng.randf() >= SimConfig.CREDIT_REQUEST_CHANCE:
 		return
 	var names: Array = SimConfig.CREDIT_NAMES
+	var picked_name: String = String(names[GameState.rng.randi_range(0, names.size() - 1)])
+	var reliability: float = GameState.rng.randf_range(
+		SimConfig.CREDIT_RELIABILITY_MIN, SimConfig.CREDIT_RELIABILITY_MAX)
+	# Repeat customers nudge toward their own track record — trust (or wariness)
+	# builds from real history with THIS person, not a fresh coin-flip every time.
+	var history: Dictionary = GameState.customer_relationships.get(picked_name, {})
+	reliability += float(history.get("paid", 0)) * SimConfig.CREDIT_HISTORY_PAID_BONUS
+	reliability -= float(history.get("defaulted", 0)) * SimConfig.CREDIT_HISTORY_DEFAULT_PENALTY
+	reliability = clampf(reliability,
+		SimConfig.CREDIT_RELIABILITY_HARD_MIN, SimConfig.CREDIT_RELIABILITY_HARD_MAX)
 	var request: Dictionary = {
-		"name": names[GameState.rng.randi_range(0, names.size() - 1)],
+		"name": picked_name,
 		"qty": GameState.rng.randi_range(SimConfig.CREDIT_QTY_MIN, SimConfig.CREDIT_QTY_MAX),
 		"repay_in_days": GameState.rng.randi_range(SimConfig.CREDIT_DUE_MIN_DAYS, SimConfig.CREDIT_DUE_MAX_DAYS),
-		"reliability": GameState.rng.randf_range(SimConfig.CREDIT_RELIABILITY_MIN, SimConfig.CREDIT_RELIABILITY_MAX),
+		"reliability": reliability,
+		"is_repeat": not history.is_empty(),
 	}
 	GameState.pending_credit_request = request
 	credit_requested.emit(request)
