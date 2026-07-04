@@ -118,7 +118,6 @@ func grant_credit() -> bool:
 func refuse_credit() -> bool:
 	if GameState.pending_credit_request.is_empty():
 		return false
-	GameState.record_customer_outcome(String(GameState.pending_credit_request.name), "refused")
 	GameState.pending_credit_request = {}
 	_apply_reputation_change(-SimConfig.CREDIT_REFUSE_REP_HIT, true)  # word gets around
 	GameState.add_trait("people", "cautious")

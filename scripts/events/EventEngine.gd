@@ -158,7 +158,6 @@ func maybe_roll_credit_request() -> void:
 		"qty": GameState.rng.randi_range(SimConfig.CREDIT_QTY_MIN, SimConfig.CREDIT_QTY_MAX),
 		"repay_in_days": GameState.rng.randi_range(SimConfig.CREDIT_DUE_MIN_DAYS, SimConfig.CREDIT_DUE_MAX_DAYS),
 		"reliability": reliability,
-		"is_repeat": not history.is_empty(),
 	}
 	GameState.pending_credit_request = request
 	credit_requested.emit(request)

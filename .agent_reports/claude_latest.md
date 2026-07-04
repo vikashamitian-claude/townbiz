@@ -9,6 +9,42 @@ Date: 2026-07-04
   verified; on-device confirmation still pending (nothing has executed yet,
   same as every prior stage this session)
 
+## Follow-up: code-review pass on this content diff itself (same day)
+
+Ran `/code-review --fix` at high effort against `169a645...HEAD` (this
+content diff, not yet merged as PR #5). 8 finder angles; found and fixed:
+
+1. **Real bug**: `regulars_prev` (backing the new regulars-trend diary line,
+   both `Game.gd` and `Town3D.gd`) was only reset on New Game, never synced
+   on Continue/load — so continuing a save with an established regulars
+   count would falsely log "your first regular customer" on the first day
+   advanced. Fixed by syncing it in both files' new-game AND load paths.
+2. **Simplification**: `is_repeat` was threaded through the persisted
+   credit-request dict purely for UI text, though both UI scripts already
+   have direct access to `GameState.customer_relationships`. Removed the
+   field; both UIs now compute it directly at render time.
+3. **Simplification**: `record_customer_outcome()` tracked an unused
+   "refused" counter — only "paid"/"defaulted" feed the reliability nudge,
+   and refusing someone isn't actually a signal about *their*
+   trustworthiness (it's a fact about the player's own caution). Removed
+   the counter and its call site entirely.
+4. **Reviewed, not fixed**: adding the history-nudge necessarily reorders
+   `maybe_roll_credit_request()`'s RNG draw sequence (must pick the name
+   before its history can be looked up). This shifts what a fixed seed
+   produces relative to before, but no test or project invariant depends on
+   draw-order stability across code changes — accepted as an inherent,
+   harmless consequence of the feature.
+
+Also reviewed but intentionally left alone: the near-identical
+`_note_regulars_trend()` duplicated across `Game.gd`/`Town3D.gd`. Same
+reasoning as the prior review round — `Game.gd` is documented as a legacy
+fallback slated for retirement once the 3D build reaches parity, so
+investing in a shared module now duplicates effort against code that's
+leaving.
+
+`gdformat --check` confirms the same 12/14 "would reformat" (style-only)
+count before and after these fixes — no new parse error introduced.
+
 ## What was asked and why this shape
 
 Vikash asked whether ML could give an "automatic customer experience."

@@ -75,12 +75,14 @@ func add_trait(dimension: String, value: String) -> void:
 	traits[dimension][value] = int(traits[dimension].get(value, 0)) + 1
 
 
-## Record a named customer's credit outcome ("paid"/"defaulted"/"refused"). Pure
+## Record a named customer's credit outcome ("paid"/"defaulted"). Pure
 ## bookkeeping — EventEngine.gd reads this back to nudge that customer's next
-## reliability roll; the nudge math itself lives there, not here.
+## reliability roll; the nudge math itself lives there, not here. (Refusals
+## aren't tracked: refusing someone is a fact about the player's caution,
+## not a signal about that customer's own trustworthiness.)
 func record_customer_outcome(customer_name: String, outcome: String) -> void:
 	if not customer_relationships.has(customer_name):
-		customer_relationships[customer_name] = {"paid": 0, "defaulted": 0, "refused": 0}
+		customer_relationships[customer_name] = {"paid": 0, "defaulted": 0}
 	var rec: Dictionary = customer_relationships[customer_name]
 	rec[outcome] = int(rec.get(outcome, 0)) + 1
 

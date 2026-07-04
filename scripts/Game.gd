@@ -150,6 +150,7 @@ func _begin_new_game() -> void:
 	GameState.current_price = price_slider.value
 	cost_today = Sim.get_current_unit_cost()
 	cost_yesterday = cost_today
+	regulars_prev = GameState.regular_count
 	_on_price_changed(price_slider.value)
 	_refresh_hud()
 	_update_buttons()
@@ -159,6 +160,7 @@ func _sync_after_load() -> void:
 	price_slider.value = GameState.current_price
 	cost_today = Sim.get_current_unit_cost()
 	cost_yesterday = cost_today
+	regulars_prev = GameState.regular_count
 	_on_price_changed(GameState.current_price)
 	_refresh_hud()
 	_update_buttons()
@@ -668,7 +670,7 @@ func _show_next_decision() -> void:
 	match String(current_decision.kind):
 		"credit":
 			decision_title.text = "Credit request"
-			if bool(data.get("is_repeat", false)):
+			if not GameState.customer_relationships.get(String(data.name), {}).is_empty():
 				decision_body.text = "%s is back, wanting %d units of soap on credit, repaying in %d days." % [
 					String(data.name), int(data.qty), int(data.repay_in_days)]
 			else:
