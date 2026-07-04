@@ -69,3 +69,51 @@ feedback surfaced as felt patterns rather than raw numbers.
   events shifts every other event's relative frequency (including "none")
   down slightly. `tests/BalanceSweep.gd`'s §9 targets should be re-checked
   once it can actually run.
+
+## 2026-07-04 — Long-term vision: multi-business 3D world (APPROVED by Vikash)
+
+**Trigger:** Vikash set the long-term product direction explicitly: BizTown
+becomes a walkable 3D world where players choose a business path (soap shop,
+construction materials, transport, restaurant, dairy, farming, factory,
+finance, real estate, hotel, pharmacy, hospital, software startup, etc.) that
+eventually connect into one living economy — competition/collaboration
+through business decisions, not combat. He gave an explicit, disciplined
+phased instruction: stabilize first, add only a lightweight architecture
+foundation now, do not jump to multi-business gameplay or multiplayer yet.
+
+**Decision record:**
+- **Long-term direction accepted.** `FOUNDATION.md` (frozen) and
+  `BIZTOWN_BUILD_SPEC.md` currently scope Chapter 1 to one soap shop, and
+  explicitly mark multi-product/multi-business/multiplayer as Chapter 2+.
+  That boundary stands for what's *playable* today — this decision only
+  authorizes building toward it, not skipping ahead into it. Neither frozen
+  doc is edited; this log is the record of the direction change, same
+  pattern as the 3D-pivot and customer-variety entries above.
+- **Factual correction, not a silent guess:** the instruction assumed the
+  current MVP is a construction materials store. It is not — every mission,
+  the shop sign, `BIZTOWN_BUILD_SPEC.md`, and this whole log are built around
+  a **soap** shop. Flagged to Vikash directly rather than silently reskinning
+  the existing, tested, narratively-coherent game. Soap Shop stays the
+  default/active business type; Construction Materials was added instead as
+  the second, non-playable, architecture-proving placeholder his own
+  instructions explicitly allowed ("a second placeholder... minimal data
+  only").
+- **What was built (Phase 1-2 of his instruction, this session):**
+  `scripts/business/BusinessType.gd` (pure data: identity + Chapter-1-scale
+  starting numbers — NOT the tuned demand/capacity/event formulas, which
+  stay in `SimConfig.gd` and are not generalized yet) and
+  `scripts/business/BusinessRegistry.gd` (static lookup, two entries: the
+  real `soap_shop` mirroring current `SimConfig` values exactly, and a
+  `construction_materials` placeholder with distinct minimal numbers, wired
+  to nothing). `GameState.active_business_id` added and persisted, always
+  `soap_shop` on reset today (no business-select screen exists yet).
+  `Town3D.gd`'s shop sign, counter title, expanded-shop sign, and the
+  new-game diary opener now read from the active business type instead of
+  hardcoded strings — zero behavior change for the current game, but a real,
+  working proof that swapping identity flows through the game.
+- **Explicitly NOT done this session** (each is real future work, not
+  forgotten): a business-select screen/menu, multi-business gameplay
+  (missions/economy/NPCs per business type), connecting businesses into one
+  economy, and any multiplayer/networking. Building any of these before the
+  current Chapter 1 loop has been confirmed working on-device would be
+  exactly the premature complexity his own instructions warned against.

@@ -17,7 +17,8 @@ Engine constraints:
 - Autoload order in project.godot: GameState, Events, Sim, Missions, SaveManager.
 
 Scope:
-- No new gameplay systems beyond BIZTOWN_BUILD_SPEC.md. Multi-product, multi-business, ranks, multiplayer, achievements, tutorials, difficulty modes = Chapter 2+, forbidden now. Combat/guns: never (asked and refused, see HUMAN_DECISIONS.md).
+- No new gameplay systems beyond BIZTOWN_BUILD_SPEC.md. Multi-product, multi-business gameplay, ranks, multiplayer, achievements, tutorials, difficulty modes = Chapter 2+, forbidden as PLAYABLE features now — Chapter 1 stays one playable business (soap shop). Combat/guns: never (asked and refused, see HUMAN_DECISIONS.md).
+- Long-term direction (approved 2026-07-04, HUMAN_DECISIONS.md): BizTown becomes a walkable 3D world of multiple connected business types. `scripts/business/BusinessType.gd` + `BusinessRegistry.gd` are the lightweight foundation for this — pure identity/starting-number data, NOT the tuned demand/capacity/event formulas (those stay in SimConfig.gd, un-generalized, until a second business is actually playable). Do not build a business-select screen, a second playable business, or cross-business economy connections without an explicit ask — that's real feature work, not foundation.
 - Presentation = stylized 3D walkable town in Godot (`scripts/world3d/`, approved 2026-07-03 — HUMAN_DECISIONS.md). View code talks to the autoloads only; NO business logic in the view layer. No sound yet. Android-first: touch-compatible, portrait 720x1280.
 - Android export (APK, export preset) is gated behind human approval — do not add it unprompted.
 

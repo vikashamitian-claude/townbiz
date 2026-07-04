@@ -4,6 +4,10 @@ extends Node
 
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
+# Business path (foundation for multiple business types — see HUMAN_DECISIONS.md
+# and scripts/business/. Chapter 1 only ever plays "soap_shop" today.)
+var active_business_id: String
+
 var cash: float
 var reputation: float
 var day: int
@@ -44,6 +48,9 @@ func reset(seed_value: int = -1) -> void:
 		rng.seed = seed_value
 	else:
 		rng.randomize()
+	# Always the default for now — there is no player-facing business-select
+	# screen yet, so every reset starts Chapter 1's one playable business.
+	active_business_id = BusinessRegistry.DEFAULT_ID
 	cash = SimConfig.STARTING_CASH
 	reputation = SimConfig.STARTING_REPUTATION
 	day = 0
@@ -91,6 +98,7 @@ func record_customer_outcome(customer_name: String, outcome: String) -> void:
 func to_dict() -> Dictionary:
 	return {
 		"version": 1,
+		"active_business_id": active_business_id,
 		"rng_seed": rng.seed,
 		"rng_state": rng.state,
 		"cash": cash, "reputation": reputation, "day": day,
@@ -110,6 +118,7 @@ func to_dict() -> Dictionary:
 
 ## Restore from a snapshot produced by to_dict().
 func from_dict(d: Dictionary) -> void:
+	active_business_id = String(d.get("active_business_id", BusinessRegistry.DEFAULT_ID))
 	rng.seed = int(d.get("rng_seed", 0))
 	rng.state = int(d.get("rng_state", 0))
 	cash = float(d.get("cash", SimConfig.STARTING_CASH))

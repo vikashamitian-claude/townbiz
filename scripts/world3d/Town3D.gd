@@ -142,6 +142,7 @@ func _process(delta: float) -> void:
 # ===========================================================================
 
 func _build_world() -> void:
+	var business: BusinessType = BusinessRegistry.get_active()
 	var env := WorldEnvironment.new()
 	var e := Environment.new()
 	e.background_mode = Environment.BG_SKY
@@ -181,7 +182,7 @@ func _build_world() -> void:
 		self, Vector3(1.2, 1.0, -3.95), Vector3(1.1, 2.0, 0.12), Color(0.30, 0.22, 0.16))
 	GrayboxKit.visual_box(  # window
 		self, Vector3(-1.2, 1.7, -3.95), Vector3(1.4, 1.0, 0.12), Color(0.55, 0.78, 0.95))
-	GrayboxKit.label3d(self, "SOAP SHOP", Vector3(0, 3.6, -4), 96, Color(1, 0.95, 0.8))
+	GrayboxKit.label3d(self, business.shop_sign_text, Vector3(0, 3.6, -4), 96, Color(1, 0.95, 0.8))
 	# Counter (in front, under an awning)
 	GrayboxKit.visual_box(self, Vector3(0, 0.5, -2.6), Vector3(2.6, 1.0, 0.7), Color(0.42, 0.32, 0.24))
 
@@ -392,7 +393,7 @@ func _build_manage_panel() -> void:
 	manage_panel.add_child(v)
 
 	var title := Label.new()
-	title.text = "SOAP SHOP — Counter"
+	title.text = "%s — Counter" % BusinessRegistry.get_active().shop_sign_text
 	title.add_theme_font_size_override("font_size", 22)
 	title.add_theme_color_override("font_color", TEXT)
 	v.add_child(title)
@@ -511,6 +512,7 @@ func _build_decision_overlay() -> void:
 # ===========================================================================
 
 func _begin_new_game() -> void:
+	_log(BusinessRegistry.get_active().tagline)
 	Missions.start_chapter()
 	GameState.current_price = price_slider.value
 	cost_today = Sim.get_current_unit_cost()
@@ -689,7 +691,7 @@ func _on_context_pressed() -> void:
 
 
 func _apply_expansion_visual() -> void:
-	_paint_neighbor("SOAP SHOP II", Color(1, 0.95, 0.8), Color(0.78, 0.55, 0.38))
+	_paint_neighbor(BusinessRegistry.get_active().expanded_sign_text, Color(1, 0.95, 0.8), Color(0.78, 0.55, 0.38))
 
 
 ## Repaint the neighbor shop's sign and wall color (expanded vs FOR RENT).
