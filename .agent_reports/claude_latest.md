@@ -1,99 +1,111 @@
-# Claude Code Report — Sprint 3D, Phase 3D-1 follow-up (self-review pass)
+# Claude Code Report — /code-review high-effort pass on the core sim engine
 
-Date: 2026-07-03
+Date: 2026-07-04
 
-- STAGE: 3D-1 — self-directed develop/review/fix pass on the walkable town (PR #3)
-- STATUS: PASS WITH MINOR FIXES — real bug found and fixed; static verification
-  tooling upgraded; full on-device confirmation still pending (see below)
+- STAGE: post-3D-1 — full 8-angle code review (--fix) against the core engine
+  (`scripts/sim/`, `scripts/events/`, `scripts/mission/`, `scripts/save/`)
+- STATUS: PASS WITH MINOR FIXES — 6 real bugs fixed (one is a confirmed
+  violation of the project's own signal-ordering hard rule), 3 lower-priority
+  findings knowingly deferred with reasons. On-device confirmation still
+  pending — nothing has executed the engine yet, anywhere.
 
-## What changed and why
+## Why this pass
 
-Asked to develop, test, review, and fix autonomously. Godot itself remains
-unavailable in this cloud sandbox (no binary, no network path to fetch one —
-confirmed again this session), but two things are newly available and used:
+The previous review targeted the new 3D UI. The core engine (`Sim.gd`,
+`EventEngine.gd`, `MissionManager.gd`, `SaveManager.gd`) came from the
+original code drop and had only ever had a manual read-through during Stage 1
+integration — never a rigorous adversarial review. Given the last pass found
+a severe bug in the UI, it seemed likely the engine deserved the same
+treatment. One of 8 finder-agent angles (cross-file tracer) failed mid-run on
+a session-limit error; the other 7 (line-by-line, invariant audit, reuse,
+simplification, efficiency, altitude, conventions) completed and were
+verified directly against the code (reading the exact lines, tracing the
+existing `tests/TestRunner.gd` suites against each proposed fix by hand,
+since Godot itself still isn't available to actually run them).
 
-1. **`gdtoolkit` (pip-installable, PyPI is reachable)** — `gdlint`/`gdformat`
-   run a real independent GDScript grammar parser. Not a Godot API checker
-   (doesn't know Node3D/Camera3D/etc. exist), but it DOES catch real syntax
-   errors, and running it project-wide gives a genuine (not fabricated)
-   verification signal: **`gdformat --check` parses all 14 `.gd` files in
-   `scripts/` and `tests/` with zero parse failures.** Documented for future
-   sessions in `CLAUDE.md`.
-2. `godot3` is `apt`-installable but is Godot 3.x — a different, incompatible
-   GDScript dialect from this Godot-4.x project. Confirmed unusable for
-   testing this codebase; noted so no future session wastes time on it.
+## Fixed (6)
 
-## Bug found and fixed (via gdlint review, not on-device report)
+1. **Signal-ordering rule violation** — `Sim.run_day()`'s own comment says
+   "all mutation completes before any event is emitted (§2.3)," but
+   `Events.offer_lender()` (which mutates `lender_offer_pending` and fires
+   its own signal) ran *after* `month_ended.emit()` had already fired. A
+   `month_ended` listener reading that flag synchronously would see it
+   stale. Fixed by reordering within the same `is_month_end` block.
+2. **Credit repaid one day late, every time** — `due_day` is stamped using
+   the *post-increment* day at grant time, but `_process_credit_dues()` runs
+   *before* that call's day increment, so the comparison was off by one.
+   Every credit resolved a day after what the UI's "repaying in N days" text
+   promised. Traced the fix against `tests/TestRunner.gd`'s `_test_credit`
+   by hand (due_day=3, 4 `run_day()` calls) — the existing assertion still
+   passes, resolution now just happens one call earlier (on time).
+3. **Event effects stacked instead of refreshing** — re-rolling
+   `supplier_hike`/`supplier_deal`/`competitor_discount` while a prior
+   instance was still active appended a second entry to
+   `GameState.active_effects`, doubling `cost_delta`/`demand_mult` in
+   `get_active_cost_delta()`/`get_active_demand_mult()` instead of resetting
+   the effect's duration. Fixed by removing any existing same-id entry
+   before appending — the credit-request path already had an equivalent
+   guard; this event class didn't.
+4. **A second bulk offer silently destroyed the first** — `pending_bulk_offer`
+   was overwritten unconditionally with no guard, unlike the credit-request
+   path which explicitly checks `is_empty()` first. Added the same guard.
+5. **Reloading a finished-Chapter-1 save never showed the completion
+   screen** — `MissionManager.from_dict()`'s guard only covered
+   `current_index < missions.size()`; loading a save from after the chapter
+   was already done fell through and emitted nothing at all. Now emits
+   `chapter_completed` in that case. (Caveat: Town3D's ephemeral reflection
+   stats — total revenue, Ravi-hire day, price-change count — aren't part of
+   the persisted save format, so they'll show as zero/default if reached
+   this way; this is a pre-existing, narrower gap that reaching the screen
+   at all now makes newly visible, not a regression.)
+6. **`SaveManager.load_game()` didn't re-telegraph a pending event** the
+   player may not have seen this session (e.g. they quit right after it
+   fired) — added a re-telegraph call. The event still applied on schedule
+   either way; this only concerned whether the warning was shown.
 
-**`scripts/world3d/Town3D.gd`** — the "Ravi" 3D label was built by a helper
-that unconditionally parented it to the town root, then the call site tried
-to re-parent it under `ravi_npc`. Godot does not allow adding a node that
-already has a parent, so the label never actually followed Ravi around —
-it likely explains the "Ravi" text you saw floating away from his character
-in the last screenshot. Fixed by making the label builder take an explicit
-parent and passing `ravi_npc` directly (no reparenting needed).
+Also added a defensive `push_warning` default arm to `EventEngine.apply_pending()`'s
+match — a telegraphed event with no matching case there previously applied
+as a silent no-op. This doesn't fix a live bug (all 6 current event types are
+handled) but narrows a real design gap the altitude angle flagged: event
+identity is a bare string duplicated independently across
+`SimConfig.EVENT_WEIGHTS`, `_make_event()`, and `apply_pending()` with no
+shared registry, so a future addition or typo in any one of them would
+otherwise degrade silently.
 
-## Refactor (triggered by a real lint flag, not cosmetic)
+## Knowingly skipped (2, both are economy/balance questions, not bugs)
 
-`gdlint` flagged `Town3D.gd` at 1070 lines (over its 1000-line guideline).
-Extracted the six stateless graybox mesh-builder functions (`_static_box`,
-`_visual_box`, `_label3d`, `_tree`, `_person`, `_tint_person`) into a new
-**`scripts/world3d/GrayboxKit.gd`** (`class_name GrayboxKit`, static
-functions, no game state/autoload references). This is also exactly the
-swap point Phase 3D-2 needs when replacing boxes with real low-poly assets
-(see `HUMAN_DECISIONS.md`) — one file to change, not scattered call sites.
-Town3D.gd is now 976 lines. All call sites updated; every one traced by
-hand against the extracted signatures (parent param added where the
-original called `add_child` on `self`).
+- **`REP_MAX_DAILY_DROP` only caps the demand-loss reputation penalty** —
+  bulk-commitment failures (uncapped, -3 each) and a lender month-end
+  rollover (uncapped, -10) can stack well past what the constant's name
+  implies on a single bad day. This is a real design tension, but fixing it
+  means changing how reputation deltas accumulate across a day — an economy
+  change, which `AGENTS.md` explicitly gates behind human approval. Flagging
+  for a design decision rather than changing behavior unasked.
+- **`GameState.credit_ledger` never prunes resolved entries** (unlike
+  `bulk_commitments`, which does) — real unbounded growth over a very long
+  save, but low severity in practice given a realistic Chapter 1 playthrough
+  length (tens of entries at most), and pruning would break
+  `tests/TestRunner.gd`'s `_test_credit`, which explicitly reads
+  `credit_ledger[0]` *after* it resolves. Not worth the test-contract risk
+  for a non-urgent perf concern.
 
-Also fixed two `gdlint` "declaration order" flags (cosmetic, zero behavior
-change): `SaveManager.gd` (signals before the const), `Player3D.gd` (public
-var before private `_`-prefixed vars).
+## Verification method
 
-## Also fixed (from the prior on-device screenshot report)
+Same as the previous pass: no Godot binary available in this sandbox.
+`gdformat --check` across every `.gd` file in `scripts/`+`tests/` before and
+after all edits shows the same 12/14 "would reformat" (style-only) count
+throughout — confirms no fix introduced a parse error. Each fix was also
+traced by hand against the specific `tests/TestRunner.gd` assertions it could
+plausibly affect (credit timing, mission save/load) to catch a fix that
+"looks right" but would silently break the one real (if unexecuted) test
+suite this project has.
 
-Already pushed in the prior commit on this PR: the flat-color seam where the
-old 44x44 ground plane ended (enlarged to 200x200 + blended sky ground
-colors), and pulled the follow camera back for a wider establishing view.
-
-## FILES CHANGED
-
-- `scripts/world3d/GrayboxKit.gd` — NEW
-- `scripts/world3d/Town3D.gd` — extraction, bug fix, ordering fix, line-wrap cleanup
-- `scripts/world3d/Player3D.gd` — ordering fix only
-- `scripts/save/SaveManager.gd` — ordering fix only
-- `CLAUDE.md` — documents the gdtoolkit verification capability for future sessions
-
-## TEST OUTPUT
-
-```
-$ gdformat --check $(find scripts tests -name "*.gd")
-would reformat scripts/sim/Sim.gd
-would reformat scripts/sim/SimConfig.gd
-would reformat scripts/sim/GameState.gd
-would reformat scripts/mission/MissionData.gd
-would reformat scripts/mission/MissionManager.gd
-would reformat scripts/events/EventEngine.gd
-would reformat scripts/Game.gd
-would reformat scripts/world3d/Town3D.gd
-would reformat scripts/world3d/Player3D.gd
-would reformat scripts/Main.gd
-would reformat tests/BalanceSweep.gd
-would reformat tests/TestRunner.gd
-12 files would be reformatted, 2 files would be left unchanged.
-EXIT: 1
-```
-Exit 1 here means "some files aren't gdformat-styled" (cosmetic), NOT a parse
-failure — no file threw a parse error. That's the real signal: all 14 `.gd`
-files are syntactically valid GDScript. Remaining `gdlint` output is only
-line-length style warnings on lines I didn't touch (pre-existing in the
-original code drop) — not pursued, to avoid unrelated churn on approved-spec
-files.
-
-**Still not verified by execution:** whether the game actually runs/looks
-right on-device. This static pass narrows the risk window; it is not a
-substitute for the phone playtest.
+**Still not verified by execution.** Every fix here is reasoned from reading
+the code and tracing test logic by hand — genuinely careful, but not the
+same as watching it run. The phone playtest remains the only thing that can
+actually confirm this.
 
 ## OPEN QUESTIONS
 
-none — next real signal is Vikash re-testing PR #3 on-device.
+The two skipped findings above are economy/balance judgment calls, not
+implementation questions — surfaced for Vikash's awareness, not blocking.

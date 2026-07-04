@@ -42,6 +42,10 @@ func from_dict(d: Dictionary) -> void:
 	current_index = int(d.get("current_index", 0))
 	if current_index >= 0 and current_index < missions.size():
 		mission_started.emit(missions[current_index])
+	elif current_index >= missions.size():
+		# Saved after Chapter 1 was already finished — tell the UI so a
+		# reload doesn't silently drop back into a blank/no-mission state.
+		chapter_completed.emit()
 
 
 # --- signal adapters (Godot connects need matching arities) ---

@@ -5,10 +5,8 @@ extends Control
 ## Wires the UI to the Living Business engine (Sim / Events / Missions / SaveManager).
 
 const DAY_DURATION: float = 2.7
-const BUY_QUANTITY: int = 60
 const MAX_CUSTOMER_DOTS: int = 10
 const LOG_MAX: int = 6
-const LOW_STOCK: int = 18
 
 # --- Palette ---
 const BG := Color(0.09, 0.11, 0.16)
@@ -422,7 +420,7 @@ func _advance_day() -> void:
 	elif drep < 0:
 		_float("Reputation %d" % drep, BAD, rep_value.global_position + Vector2(0, 30))
 
-	if GameState.inventory <= LOW_STOCK and not chapter_done:
+	if GameState.inventory <= SimConfig.LOW_STOCK and not chapter_done:
 		_float("Low stock!", WARN, stock_value.global_position + Vector2(0, 30))
 
 	_spawn_customers(r)
@@ -543,13 +541,13 @@ func _on_price_changed(value: float) -> void:
 
 func _on_buy() -> void:
 	var unit_cost: float = Sim.get_current_unit_cost()
-	if not Sim.buy_inventory(BUY_QUANTITY):
+	if not Sim.buy_inventory(SimConfig.BUY_QUANTITY):
 		_float("Not enough cash", BAD, stock_value.global_position + Vector2(0, 30))
 		return
-	var cost: int = int(round(BUY_QUANTITY * unit_cost))
-	stock_ordered += BUY_QUANTITY
-	_diary("Ordered %d units of soap at Rs %d/unit (Rs %d). Shelves are full again." % [BUY_QUANTITY, int(round(unit_cost)), cost])
-	_float("+%d stock" % BUY_QUANTITY, STOCK_COL, stock_value.global_position + Vector2(0, 30))
+	var cost: int = int(round(SimConfig.BUY_QUANTITY * unit_cost))
+	stock_ordered += SimConfig.BUY_QUANTITY
+	_diary("Ordered %d units of soap at Rs %d/unit (Rs %d). Shelves are full again." % [SimConfig.BUY_QUANTITY, int(round(unit_cost)), cost])
+	_float("+%d stock" % SimConfig.BUY_QUANTITY, STOCK_COL, stock_value.global_position + Vector2(0, 30))
 	_refresh_hud()
 	_update_buttons()
 
@@ -769,7 +767,7 @@ func _refresh_hud() -> void:
 	cash_value.text = "Rs %d" % int(GameState.cash)
 	rep_value.text = str(int(round(GameState.reputation)))
 	stock_value.text = str(GameState.inventory)
-	stock_value.add_theme_color_override("font_color", WARN if GameState.inventory <= LOW_STOCK else STOCK_COL)
+	stock_value.add_theme_color_override("font_color", WARN if GameState.inventory <= SimConfig.LOW_STOCK else STOCK_COL)
 	regulars_value.text = str(GameState.regular_count)
 
 
@@ -783,7 +781,7 @@ func _update_buttons() -> void:
 
 	expand_button.disabled = not ((cur_id == "shop_next_door") and not GameState.has_expanded_shop)
 
-	buy_button.text = "Buy %d stock - Rs%d today (Rs%d yest.)" % [BUY_QUANTITY, int(round(cost_today)), int(round(cost_yesterday))]
+	buy_button.text = "Buy %d stock - Rs%d today (Rs%d yest.)" % [SimConfig.BUY_QUANTITY, int(round(cost_today)), int(round(cost_yesterday))]
 	buy_button.disabled = chapter_done
 
 	flow_button.disabled = chapter_done or decision_active
@@ -823,7 +821,7 @@ func _diary_day(r: Dictionary) -> void:
 	_diary("Day %d  -  %d customers bought soap (Rs %d)." % [r.day, r.served, int(r.revenue)])
 	if r.lost > 0:
 		_diary("   %d people left without buying - the wait was too long." % r.lost)
-	if r.inventory <= LOW_STOCK:
+	if r.inventory <= SimConfig.LOW_STOCK:
 		_diary("   Stock is running low. Better order more soon.")
 
 
