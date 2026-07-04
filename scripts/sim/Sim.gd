@@ -264,9 +264,12 @@ func run_day() -> Dictionary:
 		"rent_paid": rent_paid,
 	}
 	if is_month_end:
-		month_ended.emit(rent_paid, GameState.cash)
 		if GameState.cash < 0.0:
 			Events.offer_lender()  # broke = harder path, never death
+			# ^ must run before month_ended.emit(): all mutation finishes before
+			# any signal fires (§2.3), so a month_ended listener that reads
+			# GameState.lender_offer_pending sees this decision, not a stale one.
+		month_ended.emit(rent_paid, GameState.cash)
 	day_ended.emit(result)
 	Events.telegraph(GameState.pending_event)
 	changed.emit()
@@ -312,8 +315,13 @@ func _process_bulk_commitments() -> Dictionary:
 func _process_credit_dues() -> Dictionary:
 	var paid: int = 0
 	var defaulted: int = 0
+	# This runs (step 7) before GameState.day advances (step 10) for the day
+	# it's resolving, but due_day was stamped using the post-increment day
+	# at grant time — compare against GameState.day + 1 (what "today" will
+	# read as once this call's increment happens) so an entry due on day N
+	# resolves during the call that reports day N, not day N+1.
 	for entry in GameState.credit_ledger:
-		if bool(entry.resolved) or GameState.day < int(entry.due_day):
+		if bool(entry.resolved) or GameState.day + 1 < int(entry.due_day):
 			continue
 		entry.resolved = true
 		if GameState.rng.randf() <= float(entry.reliability):

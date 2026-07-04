@@ -76,6 +76,11 @@ func apply_pending(event: Dictionary) -> float:
 		"festival_rush", "heavy_rain":
 			one_day_mult = float(event.get("demand_mult", 1.0))
 		"supplier_hike", "supplier_deal", "competitor_discount":
+			# Refresh rather than stack: re-rolling the same effect while a prior
+			# instance is still active should reset its duration/magnitude, not
+			# add a second copy on top (which would double the cost_delta/demand_mult).
+			GameState.active_effects = GameState.active_effects.filter(
+				func(e: Dictionary) -> bool: return String(e.get("id", "")) != String(event.id))
 			GameState.active_effects.append({
 				"id": event.id,
 				"days_left": int(event.get("duration", 1)),
@@ -83,11 +88,19 @@ func apply_pending(event: Dictionary) -> float:
 				"demand_mult": float(event.get("demand_mult", 1.0)),
 			})
 		"bulk_order_offer":
-			var unit_price: float = snappedf(GameState.current_unit_cost + float(event.get("margin", 5.0)), 0.5)
-			var offer: Dictionary = { "qty": int(event.get("qty", 30)), "unit_price": unit_price,
-				"deadline_days": SimConfig.BULK_DEADLINE_DAYS }
-			GameState.pending_bulk_offer = offer
-			bulk_offered.emit(offer)
+			# Don't clobber an unresolved offer the player hasn't answered yet.
+			if GameState.pending_bulk_offer.is_empty():
+				var unit_price: float = snappedf(GameState.current_unit_cost + float(event.get("margin", 5.0)), 0.5)
+				var offer: Dictionary = { "qty": int(event.get("qty", 30)), "unit_price": unit_price,
+					"deadline_days": SimConfig.BULK_DEADLINE_DAYS }
+				GameState.pending_bulk_offer = offer
+				bulk_offered.emit(offer)
+		_:
+			# A telegraphed event with no matching effect branch here would
+			# otherwise apply silently as a no-op — warn loudly instead, since
+			# this only happens if a new SimConfig.EVENT_WEIGHTS id is added
+			# without a matching case above (or one is typo'd).
+			push_warning("EventEngine: telegraphed event has no apply_pending case: %s" % [event.get("id", "")])
 	return one_day_mult
 
 

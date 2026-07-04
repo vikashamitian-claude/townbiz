@@ -51,6 +51,11 @@ func load_game() -> bool:
 	Missions.from_dict(parsed.get("missions", {}))
 	loaded.emit()
 	Sim.changed.emit()  # refresh HUD
+	if not GameState.pending_event.is_empty():
+		# Re-announce a telegraph the player may not have seen this session
+		# (e.g. they quit right after it fired) — the effect still applies
+		# on schedule either way; this only concerns the warning itself.
+		Events.telegraph(GameState.pending_event)
 	return true
 
 
