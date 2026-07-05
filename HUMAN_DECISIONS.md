@@ -117,3 +117,58 @@ foundation now, do not jump to multi-business gameplay or multiplayer yet.
   economy, and any multiplayer/networking. Building any of these before the
   current Chapter 1 loop has been confirmed working on-device would be
   exactly the premature complexity his own instructions warned against.
+
+## 2026-07-05 — Construction-first vision + persistence law (DIRECTION set by Vikash)
+
+**Trigger:** First session from the Windows desktop (prior work was phone-only
+from the Android editor). Vikash laid out the long-term game vision across a
+design discussion and asked to capture it. Full write-up:
+`DESIGN_CONSTRUCTION_ECONOMY.md`. This entry records the decision and the one
+verified engine fact that matters.
+
+**Decision record (direction, not an approved build spec — Chapter 2+):**
+- **Keystone law stated by Vikash:** *"What is built in the game stays in the
+  game as basic structure."* Everything the player constructs is permanent,
+  load-bearing world; the town only accretes across sessions. This is now the
+  north-star principle for the multi-business direction (consistent with the
+  2026-07-04 multi-business entry above, which it extends — it does not replace
+  the disciplined "stabilize Chapter 1 first" stance).
+- **Construction is the foundational business,** because commerce is built on
+  infrastructure first. The playable unit is **one contract**: the player is a
+  contractor who buys materials (cement/TMT/etc. from in-game material shops),
+  builds one structure, and gets paid. That structure persists and becomes a
+  future business location — the contractor manufactures the rest of the game.
+- **Dependency chains + govt/private demand** turn "build one by one" into an
+  ordering strategy (roads unlock districts that make private contracts viable).
+- **Township planning is the teaching layer,** scored by a **split evaluation
+  system**: engine computes the *measurable* criteria (fair, deterministic,
+  reproducible); AI judges *subjective* criteria against a written rubric and
+  **coaches/corrects** — the AI does NOT hold the scoreboard. Same discipline as
+  the 2026-07-04 "no real ML deciding outcomes" stance.
+- **Arc:** plan → build (manual contractor loop; auto-mode is a time-skip only,
+  never the default) → run businesses. **New businesses emerge from demand**
+  (deterministic thresholds; AI narrates, does not decide), and the causal chain
+  must be visible to the player.
+- **Co-op/multiplayer: PARKED, not approved.** Networking is a scope bomb; design
+  for serializable state so it's possible later, but do not build netcode until
+  single-player is proven fun.
+
+**Verified engine fact (checked against code this session, load-bearing):**
+- The keystone law is **NOT true in the engine yet.** `SaveManager.gd` persists
+  only sim state (`GameState` numbers/flags + `Missions`); the 3D town is
+  **regenerated from code** in `Town3D.gd::_ready()` every launch. Shop expansion
+  and Ravi are booleans flipping mesh visibility, not saved structures. **Nothing
+  the player builds currently persists, because nothing built is recorded.**
+- **Named prerequisite:** the town must become **data, not code** — a
+  serializable "built world" registry (structure type/position/state) that the
+  save writes/reads and `Town3D` rebuilds from, mirroring the existing
+  `BusinessRegistry`/`BusinessType` pattern. This is the one architectural
+  foundation everything else in the vision stands on; build it before piling art
+  or new businesses on the hardcoded town.
+
+**Art direction (this session):** target is **stylized low-poly** (not realistic).
+The real-asset swap was blocked on Android (no network to asset sites, no Godot to
+verify imports). The Windows desktop unblocks it — Godot 4.7 is present locally, so
+CC0/low-poly packs (Kenney free; Synty POLYGON as a paid step up) can be imported
+*and verified in the editor* here. `GrayboxKit.gd` remains the single swap point;
+the procedural low-poly upgrade already lives on the unmerged Phase 3D-2 branch.
