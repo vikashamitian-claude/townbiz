@@ -175,22 +175,29 @@ func maybe_roll_contract_offer() -> void:
 	if GameState.rng.randf() >= SimConfig.CONTRACT_OFFER_CHANCE:
 		return
 	var names: Array = SimConfig.CREDIT_NAMES
+	var project: Dictionary = SimConfig.CONTRACT_PROJECTS[
+		GameState.rng.randi_range(0, SimConfig.CONTRACT_PROJECTS.size() - 1)]
+	var mat_range: Array = project.materials
 	var materials: float = snappedf(GameState.rng.randf_range(
-		SimConfig.CONTRACT_MATERIALS_MIN, SimConfig.CONTRACT_MATERIALS_MAX), 10.0)
+		float(mat_range[0]), float(mat_range[1])), 10.0)
 	var margin: float = GameState.rng.randf_range(
 		SimConfig.CONTRACT_MARGIN_MIN, SimConfig.CONTRACT_MARGIN_MAX)
 	var style: int = GameState.rng.randi_range(0, SimConfig.CONTRACT_WALL_COLORS.size() - 1)
 	var plot: Array = SimConfig.CONTRACT_PLOTS[GameState.contracts_completed]
+	var size: Array = project.size
 	var offer: Dictionary = {
 		"name": String(names[GameState.rng.randi_range(0, names.size() - 1)]),
+		"label": String(project.label),
+		"teach": String(project.teach),
 		"materials_cost": materials,
 		"payout": snappedf(materials * (1.0 + margin), 10.0),
 		"build_days": GameState.rng.randi_range(
 			SimConfig.CONTRACT_BUILD_DAYS_MIN, SimConfig.CONTRACT_BUILD_DAYS_MAX),
 		"structure": {
-			"type": "building",
-			"pos": [float(plot[0]), SimConfig.CONTRACT_HOUSE_SIZE[1] * 0.5, float(plot[1])],
-			"size": SimConfig.CONTRACT_HOUSE_SIZE.duplicate(),
+			"type": String(project.structure_type),
+			"label": String(project.label),
+			"pos": [float(plot[0]), float(size[1]) * 0.5, float(plot[1])],
+			"size": size.duplicate(),
 			"wall": SimConfig.CONTRACT_WALL_COLORS[style].duplicate(),
 			"roof": SimConfig.CONTRACT_ROOF_COLORS[style].duplicate(),
 			"face": 1.0 if float(plot[1]) < 1.5 else -1.0,

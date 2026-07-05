@@ -619,8 +619,11 @@ func _advance_day() -> void:
 	var contract: Dictionary = r.get("contract", {})
 	if not contract.is_empty():
 		_rebuild_structures()
-		_log("%s's house is finished - paid Rs %d. It stands as long as the town does." % [
-			String(contract.name), int(contract.payout)])
+		_log("%s's %s is finished - paid Rs %d. It stands as long as the town does." % [
+			String(contract.name), String(contract.get("label", "house")).to_lower(),
+			int(contract.payout)])
+		if String(contract.get("teach", "")) != "":
+			_log(String(contract.teach))
 		_float("The town grew!", GOOD, Vector2(360, 300))
 
 	var drep: int = int(round(GameState.reputation - rep_before))
@@ -847,9 +850,10 @@ func _show_next_decision() -> void:
 			decision_yes.text = "Accept loan"
 			decision_no.text = "Decline"
 		"contract":
-			decision_title.text = "Build contract"
-			decision_body.text = "%s wants a house built on the empty plot. Materials cost Rs %d now; pays Rs %d when finished (%d days). Profit: Rs %d." % [
-				String(data.name), int(data.materials_cost), int(data.payout),
+			decision_title.text = "Build contract: %s" % String(data.get("label", "House"))
+			decision_body.text = "%s wants a %s built on the empty plot. Materials cost Rs %d now; pays Rs %d when finished (%d days). Profit: Rs %d." % [
+				String(data.name), String(data.get("label", "house")).to_lower(),
+				int(data.materials_cost), int(data.payout),
 				int(data.build_days), int(data.payout) - int(data.materials_cost)]
 			decision_yes.text = "Take the contract"
 			decision_no.text = "Pass"

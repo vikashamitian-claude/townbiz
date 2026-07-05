@@ -160,6 +160,8 @@ func accept_contract() -> bool:
 	GameState.cash -= float(offer.materials_cost)
 	GameState.active_contract = {
 		"name": offer.name,
+		"label": String(offer.get("label", "House")),
+		"teach": String(offer.get("teach", "")),
 		"materials_cost": float(offer.materials_cost),
 		"payout": float(offer.payout),
 		"complete_day": GameState.day + int(offer.build_days),
@@ -360,7 +362,12 @@ func _process_contract() -> Dictionary:
 	_apply_reputation_change(SimConfig.CONTRACT_REP_REWARD, true)
 	GameState.contracts_completed += 1
 	GameState.active_contract = {}
-	return { "name": c.name, "payout": float(c.payout) }
+	return {
+		"name": c.name,
+		"label": String(c.get("label", "House")),
+		"teach": String(c.get("teach", "")),
+		"payout": float(c.payout),
+	}
 
 
 func _process_credit_dues() -> Dictionary:

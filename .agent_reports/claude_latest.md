@@ -1,83 +1,62 @@
-# Claude Code Report — Contractor loop MVP (the §9 causal loop, playable)
+# Claude Code Report — Contract variety: the town-planning curriculum begins
 
 Date: 2026-07-05
 
-- STAGE: first gameplay slice of the construction-first vision, per Vikash's
-  "let's develop the whole game in the new guideline" (recorded in
-  HUMAN_DECISIONS.md as explicit owner authorization).
-- STATUS: PASS WITH MINOR FIXES — implemented end-to-end with a new test
-  suite; parse-verified; execution pending (Windows machine has Godot 4.7
-  and can run the whole thing headless now).
+- STAGE: extension of the contractor loop per Vikash's framing — "a learning
+  and fun platform of real business... town planning is also a course."
+- STATUS: PASS WITH MINOR FIXES — implemented, parse-verified; execution
+  pending on the Windows machine's Godot 4.7.
 
-## What this is
+## What Vikash asked and how it was scoped
 
-DESIGN_CONSTRUCTION_ECONOMY.md §9 defines the smallest thing worth building:
-*build one thing → watch one economic number move → the town visibly,
-permanently grows.* This implements exactly that loop on top of the
-built-world registry (same PR branch):
+He named the full town vocabulary (houses, shops, warehouses, factories,
+agriculture, roads, bridges, offices, drainage, water channels) as things
+players should LEARN through play. Split into:
 
-1. A **build-contract offer** arrives (10%/day when none is active and empty
-   plots remain — same decision-modal pattern as credit/bulk/lender):
-   "<Name> wants a house built. Materials Rs X now; pays Rs Z in N days.
-   Profit: Rs Z−X." Margin legible per §3.
-2. **Accept** → materials cost leaves cash immediately (fails politely if
-   cash is short). **Decline** → nothing, trait recorded.
-3. N days later, inside `run_day()` (all mutation before signals, same
-   day+1 timing pattern as credit dues): the finished house is **appended to
-   `GameState.built_structures`** — the persistent registry — payout lands,
-   reputation +2.
-4. Town3D rebuilds: **a real house appears on a previously-empty plot and
-   stands in every save thereafter.** Diary narrates the causality: "X's
-   house is finished — paid Rs Z. It stands as long as the town does."
-   (§9: surface the chain.)
+1. **Captured as curriculum** — DESIGN_CONSTRUCTION_ECONOMY.md §12: the
+   vocabulary IS the syllabus; a table maps each element to the economic
+   lesson it teaches. Terrain-shaped infrastructure (roads, bridges,
+   drainage, water channels, agriculture) is explicitly assigned to the
+   township-planner phase, where measurable scoring makes them teach rather
+   than decorate. Not built now — on purpose, recorded.
+2. **Implemented now** — the plot-buildable subset through the existing,
+   just-built contract loop.
 
-Offers stop when all 6 configured plots are built — the street is full;
-growing the map is Chapter 2's problem.
+## What was built
 
-## Where everything lives (architecture unchanged in shape)
-
-- `SimConfig.gd`: all `CONTRACT_*` tunables (offer chance, materials range,
-  margin range, build days, rep reward, plot list, house size/colors).
-- `EventEngine.gd`: `maybe_roll_contract_offer()` — data + signal only,
-  all randomness through `GameState.rng`.
-- `Sim.gd`: `accept_contract()`/`decline_contract()` actions;
-  `_process_contract()` completion inside `run_day()` step 7b, before the
-  day increment and long before any signal fires.
-- `GameState.gd`: `pending_contract_offer` / `active_contract` /
-  `contracts_completed`, all persisted (parity re-verified). Structure
-  entries are JSON-safe (floats/arrays) like everything else in the
-  registry.
-- Both UIs (`Town3D.gd` + `Game.gd` fallback): "contract" decision kind
-  wired into the existing modal queue; Town3D also rebuilds structures and
-  celebrates on completion.
-- Missions untouched: contracts add NO mission-driving signals; the five
-  events remain the only mission triggers.
-- `tests/TestRunner.gd`: new suite 7 — accept pays materials, completion
-  adds the structure + reports payout + advances the counter, decline is
-  free, accept refused when cash < materials.
-
-## Deliberate MVP simplifications (named, per the design doc's own §3/§10)
-
-No material-shop entities yet (materials cost is one legible number), no
-govt/private contract split, no deadline/failure on an accepted build, fixed
-plot list. Each is real future work listed in TASKS.md — not scope creep
-fodder for this slice.
+- `SimConfig.CONTRACT_PROJECTS`: four commissionable types — House, Shop,
+  Warehouse, Office — each with size, materials-cost range, and a one-line
+  "teach" sentence (the lesson). Replaces the single hardcoded house
+  project; the now-redundant `CONTRACT_MATERIALS_MIN/MAX` and
+  `CONTRACT_HOUSE_SIZE` constants were removed (no dead tunables).
+- `GrayboxKit.warehouse()` (flat overhung roof, wide loading door) and
+  `GrayboxKit.office()` (taller block, height-scaled window grid), sharing
+  a new `_walled_box()` helper with the existing gabled `building()`. Wall
+  meshes named "Wall" throughout — the repaint contract holds.
+- `StructureCatalog`: `warehouse`/`office` cases + optional `label` field —
+  contracted structures now carry a floating name label ("WAREHOUSE"), so
+  the growing town reads as WHAT it is.
+- `EventEngine.maybe_roll_contract_offer()` picks a project via
+  `GameState.rng`, carries `label` + `teach` through the offer.
+- `Sim.gd` threads label/teach through `active_contract` into the
+  completion result (persisted mid-contract saves included).
+- Both UIs: the offer modal is typed ("Build contract: Warehouse... wants a
+  warehouse built... Profit: Rs N"), and on completion the diary teaches:
+  "Warehouses let goods wait for the right price instead of flooding the
+  market." The 2D fallback also gained completion diary lines (it had
+  none — contracts finished silently there; gap found while wiring this).
 
 ## Verification
 
-`gdformat --check`: all 18 `.gd` files parse, zero errors. `gdlint`: only
-pre-existing/known flags. Save-format parity re-checked programmatically.
-Timing of contract completion hand-traced against the credit-dues
-off-by-one lesson (uses the same `day + 1` comparison). **Not executed
-here** — but the Windows machine can now run
-`godot --headless --path . res://tests/TestRunner.tscn` (suite 7 included)
-and then Play: accept a contract, run ~4 days, watch a house appear, quit,
-Continue, confirm the house is still there. That last check is the keystone
-law working for the first time.
+`gdformat --check`: all 18 files parse, zero errors. `gdlint`: only
+pre-existing known flags. No stale references to the removed constants
+(grepped). Suite 7 still passes by construction (it builds its own offer
+dicts; `label`/`teach` are read with safe `.get()` defaults everywhere).
+Not executed here — Windows can run the full suite + playtest.
 
 ## Exact next recommended step
 
-Windows: run the headless suite, then the playtest above. After that, the
-natural next slices in order: contract deadlines/failure (stakes), material
-shops with moving prices (procurement decisions), govt vs private contracts
-(the strategic tension), then §6's demand-driven business emergence.
+Same as before, one command on Windows:
+`godot --headless --path . res://tests/TestRunner.tscn` (7 suites), then
+Play — take contracts until a warehouse or office comes up, watch the town
+gain labeled, varied buildings, and check the diary teaches its line.

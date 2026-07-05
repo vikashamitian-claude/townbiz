@@ -419,6 +419,13 @@ func _advance_day() -> void:
 
 	_diary_day(r)
 	_note_regulars_trend(int(r.regulars))
+	var day_contract: Dictionary = r.get("contract", {})
+	if not day_contract.is_empty():
+		_diary("%s's %s is finished - paid Rs %d. It stands as long as the town does." % [
+			String(day_contract.name), String(day_contract.get("label", "house")).to_lower(),
+			int(day_contract.payout)])
+		if String(day_contract.get("teach", "")) != "":
+			_diary(String(day_contract.teach))
 
 	if drep > 0:
 		_float("Reputation +%d" % drep, REP_COL, rep_value.global_position + Vector2(0, 30))
@@ -696,9 +703,10 @@ func _show_next_decision() -> void:
 			decision_yes.text = "Accept loan"
 			decision_no.text = "Decline"
 		"contract":
-			decision_title.text = "Build contract"
-			decision_body.text = "%s wants a house built. Materials Rs %d now; pays Rs %d in %d days. Profit: Rs %d." % [
-				String(data.name), int(data.materials_cost), int(data.payout),
+			decision_title.text = "Build contract: %s" % String(data.get("label", "House"))
+			decision_body.text = "%s wants a %s built. Materials Rs %d now; pays Rs %d in %d days. Profit: Rs %d." % [
+				String(data.name), String(data.get("label", "house")).to_lower(),
+				int(data.materials_cost), int(data.payout),
 				int(data.build_days), int(data.payout) - int(data.materials_cost)]
 			decision_yes.text = "Take the contract"
 			decision_no.text = "Pass"

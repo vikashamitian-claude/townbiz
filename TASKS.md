@@ -96,10 +96,17 @@ Status: **Phase 3D-1 code complete — awaiting on-device verification**
    accept/complete/decline/cash-gate. Simplified per §3: no material shops,
    no govt/private split, no failure states yet — named future work.
 5. [ ] **Phase 3D-3** — interiors, character animation, town life polish.
-6. [ ] **Next construction steps (not started):** material-shop entities
+6. [x] **Contract variety = town-planning curriculum, first lesson set**
+   (design doc §12): contracts now commission House / Shop / Warehouse /
+   Office — per-type sizes, cost ranges, and procedural looks (warehouse:
+   flat roof + loading door; office: window grid), a name label over each
+   finished building, and a one-line "teach" sentence in the diary on
+   completion. Learning by building.
+7. [ ] **Next construction steps (not started):** material-shop entities
    (buy cement/TMT from named shops at moving prices), govt vs private
    contracts, contract deadlines/failure, demand-driven business emergence
-   (§6), township planner (§5).
+   (§6), township planner with terrain infrastructure — roads, bridges,
+   drainage, water channels, agriculture (§5/§12).
 
 ## Sprint CE - Customer experience variety (owner-approved, HUMAN_DECISIONS.md)
 

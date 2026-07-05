@@ -121,6 +121,82 @@ static func building(
 	return body
 
 
+## A flat-roofed warehouse: colliding walls, roof slab with a lip, and a wide
+## loading door on the road-facing side. Wall mesh named "Wall".
+static func warehouse(
+	parent: Node3D, pos: Vector3, size: Vector3,
+	wall_color: Color, roof_color: Color, face: float = 1.0
+) -> Node3D:
+	var body := _walled_box(pos, size, wall_color)
+	var roof := MeshInstance3D.new()
+	var slab := BoxMesh.new()
+	slab.size = Vector3(size.x * 1.08, 0.25, size.z * 1.08)
+	slab.material = _mat(roof_color)
+	roof.mesh = slab
+	roof.name = "Roof"
+	roof.position = Vector3(0, size.y * 0.5 + 0.125, 0)
+	body.add_child(roof)
+	var door := MeshInstance3D.new()
+	var dbox := BoxMesh.new()
+	dbox.size = Vector3(size.x * 0.45, size.y * 0.7, 0.12)
+	dbox.material = _mat(Color(0.36, 0.38, 0.42))
+	door.mesh = dbox
+	door.position = Vector3(0, -size.y * 0.5 + dbox.size.y * 0.5, face * (size.z * 0.5 + 0.06))
+	body.add_child(door)
+	parent.add_child(body)
+	return body
+
+
+## A taller flat-roofed office block with a grid of windows on the front.
+## Wall mesh named "Wall".
+static func office(
+	parent: Node3D, pos: Vector3, size: Vector3,
+	wall_color: Color, roof_color: Color, face: float = 1.0
+) -> Node3D:
+	var body := _walled_box(pos, size, wall_color)
+	var roof := MeshInstance3D.new()
+	var slab := BoxMesh.new()
+	slab.size = Vector3(size.x * 1.05, 0.22, size.z * 1.05)
+	slab.material = _mat(roof_color)
+	roof.mesh = slab
+	roof.name = "Roof"
+	roof.position = Vector3(0, size.y * 0.5 + 0.11, 0)
+	body.add_child(roof)
+	var zf: float = face * (size.z * 0.5 + 0.06)
+	var rows: int = maxi(2, int(size.y / 1.5))
+	var win_mat := _mat(Color(0.62, 0.82, 0.95))
+	for row in range(rows):
+		for col_x in [-size.x * 0.22, size.x * 0.22]:
+			var w := MeshInstance3D.new()
+			var wbox := BoxMesh.new()
+			wbox.size = Vector3(size.x * 0.26, 0.6, 0.12)
+			wbox.material = win_mat
+			w.mesh = wbox
+			w.position = Vector3(col_x, -size.y * 0.5 + 1.1 + row * 1.4, zf)
+			body.add_child(w)
+	parent.add_child(body)
+	return body
+
+
+## Shared: a colliding box body with its wall mesh named "Wall" (not parented).
+static func _walled_box(pos: Vector3, size: Vector3, wall_color: Color) -> StaticBody3D:
+	var body := StaticBody3D.new()
+	body.position = pos
+	var col := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = size
+	col.shape = shape
+	body.add_child(col)
+	var wall := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = size
+	box.material = _mat(wall_color)
+	wall.mesh = box
+	wall.name = "Wall"
+	body.add_child(wall)
+	return body
+
+
 ## A round leafy tree (trunk + two-sphere crown).
 static func tree(parent: Node3D, pos: Vector3) -> void:
 	var trunk := MeshInstance3D.new()

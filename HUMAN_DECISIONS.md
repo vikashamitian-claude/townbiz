@@ -182,3 +182,27 @@ DESIGN_CONSTRUCTION_ECONOMY.md, not just foundations for it.
   GameState.rng, all mutation inside run_day() before any signal, missions
   still driven only by the five events (contracts do NOT add mission
   triggers), save-format additive with safe defaults.
+
+## 2026-07-05 — Town-planning as curriculum (DIRECTION from Vikash)
+
+**Trigger:** Vikash: the game is "a learning and fun platform of real
+business," and town planning is itself a course — players should learn it
+through play. He listed the town vocabulary: houses, shops, warehouses,
+factories, agriculture, roads, bridges, offices, drainage systems, water
+channels, etc.
+
+**Decision record:**
+- Captured as DESIGN_CONSTRUCTION_ECONOMY.md §12: the structure vocabulary
+  IS the syllabus; each element maps to the economic lesson it teaches.
+- **Implemented now (fits the proven contract loop):** contracts commission
+  four structure types — House, Shop, Warehouse, Office — each with its own
+  size, cost range, procedural look (warehouse: flat roof + loading door;
+  office: taller with a window grid), a name label over the finished
+  building, and a one-line "teach" sentence in the diary on completion
+  ("Warehouses let goods wait for the right price..."). Learning by
+  building, not by lecture.
+- **Deliberately deferred to the township-planner phase (§5):** roads,
+  bridges, drainage, water channels, agriculture — terrain-shaped
+  infrastructure only teaches when the planner's measurable scoring
+  (access, walkability, drainage coverage) exists. Scattering them into
+  the contract loop early would make them scenery, not lessons.
