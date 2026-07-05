@@ -76,7 +76,16 @@ Status: **Phase 3D-1 code complete — awaiting on-device verification**
    `GrayboxKit.gd` remains the single swap point if Kenney-style assets are
    uploaded via GitHub web later. Same positions/collisions, zero gameplay
    change.
-3. [ ] **Phase 3D-3** — interiors, character animation, town life polish.
+3. [x] **Built-world registry** (the §7 prerequisite from
+   DESIGN_CONSTRUCTION_ECONOMY.md, implemented right after that doc landed):
+   the town is now DATA — `GameState.built_structures` (JSON-safe entries),
+   seeded from `scripts/world3d/DefaultTown.gd`, persisted in every save,
+   rebuilt by `Town3D._rebuild_structures()` via
+   `scripts/world3d/StructureCatalog.gd` on scene start / Continue / Reset.
+   Zero behavior change today (the default registry IS the old hardcoded
+   town), but anything appended to the registry now genuinely stays across
+   sessions — the keystone law has a mechanism.
+4. [ ] **Phase 3D-3** — interiors, character animation, town life polish.
 
 ## Sprint CE - Customer experience variety (owner-approved, HUMAN_DECISIONS.md)
 

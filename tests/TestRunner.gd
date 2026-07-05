@@ -259,7 +259,12 @@ func _test_save() -> void:
 	Sim.run_day()
 	_assert(SaveManager.load_game(), "load_game reads")
 	var restored: Dictionary = GameState.to_dict()
-	var same: bool = JSON.stringify(snapshot) == JSON.stringify(restored)
+	# Normalize both sides through a JSON round-trip before comparing: JSON has
+	# no int/float distinction, so an int in live state legitimately comes back
+	# as a float after save/load (e.g. inside credit_ledger or built_structures).
+	# We compare JSON-visible state, which is exactly what the save preserves.
+	var same: bool = JSON.stringify(JSON.parse_string(JSON.stringify(snapshot))) \
+		== JSON.stringify(JSON.parse_string(JSON.stringify(restored)))
 	_assert(same, "state round-trips identically through save/load")
 
 

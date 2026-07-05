@@ -139,3 +139,16 @@ Android-GL-Compatibility-safe.
 **Still open to Vikash:** uploading a CC0 pack via GitHub's web UI remains
 possible any time — `GrayboxKit.gd` is still the single swap point, and the
 procedural version then becomes the fallback.
+
+### Addendum 2026-07-05 (cloud session): §7 prerequisite implemented
+
+The built-world registry named as the strategic prerequisite above now
+exists: `GameState.built_structures` (JSON-safe data, seeded from
+`scripts/world3d/DefaultTown.gd`, persisted in every save) +
+`scripts/world3d/StructureCatalog.gd` (data → meshes) +
+`Town3D._rebuild_structures()` (scene start / Continue / Reset all rebuild
+the physical town from the registry). Zero behavior change today — the
+default registry is exactly the previously-hardcoded town — but the
+keystone law now has a real mechanism: any structure appended to the
+registry persists across sessions. Contract work (placing NEW structures
+through gameplay) remains future work per §11's boundaries.

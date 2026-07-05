@@ -8,6 +8,11 @@ var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 # and scripts/business/. Chapter 1 only ever plays "soap_shop" today.)
 var active_business_id: String
 
+# Built world — the town as serializable data (keystone law: what is built
+# stays; DESIGN_CONSTRUCTION_ECONOMY.md §7). Seeded from DefaultTown.layout()
+# on reset, persisted in saves, rebuilt by Town3D. JSON-safe entries only.
+var built_structures: Array = []
+
 var cash: float
 var reputation: float
 var day: int
@@ -51,6 +56,7 @@ func reset(seed_value: int = -1) -> void:
 	# Always the default for now — there is no player-facing business-select
 	# screen yet, so every reset starts Chapter 1's one playable business.
 	active_business_id = BusinessRegistry.DEFAULT_ID
+	built_structures = DefaultTown.layout()
 	cash = SimConfig.STARTING_CASH
 	reputation = SimConfig.STARTING_REPUTATION
 	day = 0
@@ -99,6 +105,7 @@ func to_dict() -> Dictionary:
 	return {
 		"version": 1,
 		"active_business_id": active_business_id,
+		"built_structures": built_structures,
 		"rng_seed": rng.seed,
 		"rng_state": rng.state,
 		"cash": cash, "reputation": reputation, "day": day,
@@ -119,6 +126,9 @@ func to_dict() -> Dictionary:
 ## Restore from a snapshot produced by to_dict().
 func from_dict(d: Dictionary) -> void:
 	active_business_id = String(d.get("active_business_id", BusinessRegistry.DEFAULT_ID))
+	# Saves predating the built-world registry get the default town — identical
+	# to what their Town3D was hardcoding when they were written.
+	built_structures = d.get("built_structures", DefaultTown.layout())
 	rng.seed = int(d.get("rng_seed", 0))
 	rng.state = int(d.get("rng_state", 0))
 	cash = float(d.get("cash", SimConfig.STARTING_CASH))

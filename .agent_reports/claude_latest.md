@@ -1,81 +1,86 @@
-# Claude Code Report — Phase 3D-2: procedural low-poly town upgrade
+# Claude Code Report — Built-world registry (the §7 persistence prerequisite)
 
-Date: 2026-07-04
+Date: 2026-07-05
 
-- STAGE: Sprint 3D, Phase 3D-2 (Vikash: "continue Phase 3D-2 with the
-  low-poly assets")
-- STATUS: PASS WITH MINOR FIXES — visual upgrade complete and parse-verified;
-  on-device confirmation pending (as with everything this session, nothing
-  has executed anywhere yet)
+- STAGE: implementing the one architectural prerequisite named in
+  `DESIGN_CONSTRUCTION_ECONOMY.md` §7 (which landed on main from Vikash's
+  Windows session): make the town DATA, not code, so the keystone law
+  ("what is built stays") has a mechanism.
+- STATUS: PASS WITH MINOR FIXES — implemented, parse-verified, zero behavior
+  change today; on-device confirmation pending as always.
 
-## Key decision (recorded in HUMAN_DECISIONS.md)
+## Context
 
-The original 3D-2 plan called for external CC0 packs (Kenney-style). The
-cloud sandbox can't fetch them (network scoped to this repo only), and
-importing binary `.glb` files blind — no Godot to check scale, materials, or
-import settings — is the riskiest possible change type. Implemented 3D-2 as
-a **procedural low-poly upgrade** instead: Godot built-in meshes only,
-text-diffable, GL-Compatibility-safe, fully parse-verifiable. External packs
-remain a later option; `GrayboxKit.gd` is still the single swap point.
+Vikash's Windows-desktop session captured the construction-first vision and
+verified the engine gap: SaveManager persisted only sim numbers, and Town3D
+regenerated the whole physical town from hardcoded code every launch —
+nothing built could ever persist. §7 named the fix (a serializable
+built-world registry mirroring the BusinessRegistry pattern) and called it
+the strategic priority BEFORE more content. This session implemented exactly
+that and nothing more.
 
-## What changed
+## What was built
 
-### `scripts/world3d/GrayboxKit.gd` (238 lines, rewritten)
-- `building()` — NEW: colliding walls + gabled `PrismMesh` roof + door and
-  window on the road-facing side. Wall mesh named `"Wall"` (a stable
-  contract — Town3D repaints it on shop expansion, now by name instead of
-  the old fragile `get_child(1)` index).
-- `person()` — upgraded: capsule body + sphere head + two angled arms
-  (`ArmL`/`ArmR`); `tint_person()` recolors arms along with the body.
-- `tree()` upgraded (trunk cylinder + two-sphere crown), `pine_tree()` NEW
-  (stacked cones), `lamp_post()` NEW (pole + emissive glowing head),
-  `crate()` NEW. Shared `_mat()` helper for materials, with an emissive
-  option.
-- `static_box`/`visual_box`/`label3d` signatures unchanged.
+- **`GameState.built_structures: Array`** — the town as JSON-safe data
+  (dicts with `type`, `pos [x,y,z]`, per-type fields; arrays not
+  Vector3/Color because saves round-trip through JSON). Seeded on every
+  reset from `DefaultTown.layout()`, persisted in `to_dict()`/`from_dict()`
+  (parity re-verified programmatically). Old saves without the field get the
+  default town — identical to what their game hardcoded when they were
+  written.
+- **`scripts/world3d/DefaultTown.gd`** — the previously-hardcoded town
+  layout (shop, neighbor, 5 houses, 6 trees, 4 lamps) as pure data. All
+  numeric literals deliberately floats, because JSON parsing floats all
+  numbers and the save test compares JSON-visible state.
+- **`scripts/world3d/StructureCatalog.gd`** — data → meshes bridge
+  (`building`/`tree`/`pine`/`lamp`/`crate` via GrayboxKit), with a loud
+  `push_warning` on unknown types (same discipline as EventEngine's
+  unmatched-event guard: a saved structure must never silently vanish).
+- **`Town3D`** — registry structures now live under one `structures_root`;
+  `_rebuild_structures()` clears and rebuilds from `GameState.built_structures`,
+  re-grabs the `shop`/`neighbor` refs by entry id, and re-applies the
+  expansion repaint. Called from scene start, **Continue** (the loaded
+  registry is the truth, not what `_ready()` seeded — this ordering matters
+  and was the subtle part), and **Reset**. Storefront dressing (door,
+  window, signs, counter, awning, crates) stays code-side, tied to the
+  shop's default spot.
+- **`tests/TestRunner.gd` `_test_save`** — comparison now normalizes both
+  sides through a JSON round-trip before comparing. This fixes a **latent
+  pre-existing test bug** my change would have made deterministic: JSON has
+  no int/float distinction, so ints inside nested containers (credit_ledger
+  qty/due_day, and now built_structures) legitimately come back as floats
+  after save/load; the old exact-string compare would have flagged that as
+  corruption. The test still checks full JSON-visible state equality —
+  which is precisely what the save preserves.
 
-### `scripts/world3d/Town3D.gd`
-- Shop and neighbor now `building()`s with roofs (same footprints and
-  colliders as before — every interaction point constant untouched).
-- Counter gained a sloped awning and stacked stock crates beside it.
-- All five filler houses became real houses (roofs, doors, windows, varied
-  wall/roof colors; the two south-side houses face the road correctly).
-- Road gained sidewalks and center dashes; four glowing street lamps along
-  it; tree mix is now round + pine.
-- Customers spawn with varied clothing colors (cosmetic-only `randi()`,
-  which biztown-rules explicitly permits outside `GameState.rng`).
-- Shop/neighbor sign labels raised to clear the new roofs.
-- `_paint_neighbor()` uses `get_node_or_null("Wall")` — expansion repaint
-  survives any future reordering of building children.
+## What this makes possible (and what it doesn't)
 
-### `scripts/world3d/Player3D.gd`
-- The founder gained arms (matching the upgraded people).
+Any structure appended to `GameState.built_structures` now persists across
+saves and rebuilds physically on load — the keystone law is mechanically
+true. What does NOT exist yet, on purpose (per §11's boundaries): any
+gameplay that places new structures (contracts, building UI), material
+shops, planning tools. Those are the next chapters, standing on this floor.
 
-## Invariants deliberately preserved
+## Known limitation (flagged, not hidden)
 
-- Every `*_POS` interaction constant unchanged; every collider footprint
-  identical → walking, counter/hire/expand zones, and customer walk paths
-  behave exactly as the last on-device test.
-- Zero sim/engine changes. Zero save-format changes.
-- No imported binary assets — repo stays all-text.
+Storefront dressing positions assume the shop at its default spot. If a
+future save ever relocates the `shop` entry, the dressing won't follow —
+acceptable while nothing can move it; becomes real work when contracts
+arrive.
 
 ## Verification
 
-`gdformat --check`: all 16 `.gd` files parse with zero errors (style-only
-"would reformat" diffs, as always). `gdlint scripts/world3d`: only the
-long-known `Town3D.gd` file-length flag (1100 lines) plus pre-existing
-line-length style flags — no new structural findings; the two long lines my
-own edits introduced were wrapped before commit.
+`gdformat --check`: all 18 `.gd` files parse, zero errors (style-only
+diffs). `gdlint`: only the long-standing `Town3D.gd` file-length note.
+Save/load field parity re-checked programmatically. Save round-trip traced
+by hand against `_test_save` including the int/float JSON subtlety above.
+**Not executed** — same standing gap; note the Windows machine now HAS
+Godot 4.7 per §8, so both `tests/TestRunner.tscn` and a desktop playtest
+are now one double-click away there, no phone required.
 
-**Not verified by execution** — same standing gap. The visual result
-especially needs eyes: mesh proportions/colors are reasoned, not seen.
-A single screenshot of the new town from Vikash's phone confirms (or
-corrects) the whole phase.
+## Exact next recommended step
 
-## Next recommended step
-
-1. Vikash: fresh ZIP of the branch → import → **Play** → screenshot the town
-   (this phase is visual; the screenshot IS the test).
-2. Still outstanding since session start: `tests/TestRunner.tscn` first-ever
-   run.
-3. Phase 3D-3 after visual sign-off: interiors, simple walk animation
-   (arm/leg swing), ambient townsfolk.
+On the Windows machine (which has Godot 4.7):
+`godot --headless --path . res://tests/TestRunner.tscn` — the suite's
+first-ever execution, now with the registry round-trip included. Then Play
+to eyeball the Phase 3D-2 town + confirm Continue rebuilds it correctly.
