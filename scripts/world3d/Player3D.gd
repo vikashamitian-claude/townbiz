@@ -61,6 +61,19 @@ func _ready() -> void:
 	nose_mesh.material = nose_mat
 	visual.add_child(nose)
 
+	for arm_data in [[-0.46, 0.24], [0.46, -0.24]]:
+		var arm := MeshInstance3D.new()
+		var arm_mesh := CapsuleMesh.new()
+		arm_mesh.radius = 0.10
+		arm_mesh.height = 0.62
+		var arm_mat := StandardMaterial3D.new()
+		arm_mat.albedo_color = Color(0.25, 0.47, 0.75)
+		arm_mesh.material = arm_mat
+		arm.mesh = arm_mesh
+		arm.position = Vector3(arm_data[0], 0.80, 0)
+		arm.rotation.z = arm_data[1]
+		visual.add_child(arm)
+
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:

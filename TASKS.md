@@ -68,9 +68,15 @@ Status: **Phase 3D-1 code complete — awaiting on-device verification**
    all HUD/modals/save wired to the unchanged sim engine.
    `scenes/Town3D.tscn`, `scripts/world3d/`. Now the main scene;
    `Game.tscn` kept as 2D fallback.
-2. [ ] **Phase 3D-2** — swap graybox for CC0 low-poly assets (Kenney-style;
-   Vikash downloads on phone, uploads via GitHub web).
-3. [ ] **Phase 3D-3** — interiors, character variety, town life polish.
+2. [x] **Phase 3D-2** — stylized low-poly upgrade, done PROCEDURALLY in-code
+   (gabled roofs, doors/windows on houses, people with arms + varied clothes,
+   two tree types, glowing street lamps, counter awning, stock crates,
+   sidewalks + road markings). External CC0 packs weren't fetchable from the
+   cloud sandbox and binary imports can't be verified without Godot —
+   `GrayboxKit.gd` remains the single swap point if Kenney-style assets are
+   uploaded via GitHub web later. Same positions/collisions, zero gameplay
+   change.
+3. [ ] **Phase 3D-3** — interiors, character animation, town life polish.
 
 ## Sprint CE - Customer experience variety (owner-approved, HUMAN_DECISIONS.md)
 
