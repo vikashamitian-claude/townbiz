@@ -217,3 +217,33 @@ reasoning*. It does not edit `FOUNDATION.md` or `BIZTOWN_BUILD_SPEC.md`, and it
 does not authorize skipping ahead of the current Chapter 1 loop. It authorizes
 *building toward* this vision when the owner chooses to, and it names the one
 architectural prerequisite (§7) that everything else depends on.
+
+## 12. The town-planning curriculum (added 2026-07-05, from Vikash)
+
+BizTown is a **learning-and-fun platform for real business**, and town
+planning is itself a course the player absorbs by playing. The town's
+structure vocabulary is the syllabus — each element exists to teach what it
+does for a real economy:
+
+| Element | What it teaches |
+|---|---|
+| Houses | Population — people bring demand for everything else |
+| Shops | Trade — they convert footfall into commerce, and need houses nearby |
+| Warehouses | Buffering — goods can wait for the right price |
+| Factories | Production — raw material becomes value, needs labor + transport |
+| Agriculture | Primary supply — the food/raw chain every town sits on |
+| Offices | Salaried demand — steady incomes that steady every shop's till |
+| Roads | Access — nothing earns until it can be reached |
+| Bridges | Connection — they open land that water cut off |
+| Drainage | Resilience — the invisible system that decides if the town survives rain |
+| Water channels | Utilities — supply that homes, farms, and factories all queue on |
+
+**Rollout discipline:**
+- Buildable-on-a-plot types (house, shop, warehouse, office) arrive through
+  the existing contract loop — each completed structure's diary line teaches
+  its role in one sentence. Learning by building, not by lecture.
+- Terrain-shaped infrastructure (roads, bridges, drainage, water channels,
+  farm land) belongs to the township-planner phase (§5) — that's where the
+  measurable scoring (walkability, access, drainage coverage) makes those
+  elements *teach* rather than decorate. Do not scatter them into the
+  contract loop early; without the planner's evaluation they'd be scenery.

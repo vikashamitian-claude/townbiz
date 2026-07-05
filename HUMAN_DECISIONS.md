@@ -139,3 +139,70 @@ Android-GL-Compatibility-safe.
 **Still open to Vikash:** uploading a CC0 pack via GitHub's web UI remains
 possible any time — `GrayboxKit.gd` is still the single swap point, and the
 procedural version then becomes the fallback.
+
+### Addendum 2026-07-05 (cloud session): §7 prerequisite implemented
+
+The built-world registry named as the strategic prerequisite above now
+exists: `GameState.built_structures` (JSON-safe data, seeded from
+`scripts/world3d/DefaultTown.gd`, persisted in every save) +
+`scripts/world3d/StructureCatalog.gd` (data → meshes) +
+`Town3D._rebuild_structures()` (scene start / Continue / Reset all rebuild
+the physical town from the registry). Zero behavior change today — the
+default registry is exactly the previously-hardcoded town — but the
+keystone law now has a real mechanism: any structure appended to the
+registry persists across sessions. Contract work (placing NEW structures
+through gameplay) remains future work per §11's boundaries.
+
+## 2026-07-05 — "Develop the whole game in the new guideline" (APPROVED by Vikash)
+
+**Trigger:** After the built-world registry landed (PR #7 branch), Vikash
+said: "let's develop the whole game in the new guideline" — explicit owner
+authorization to start building the construction-first gameplay of
+DESIGN_CONSTRUCTION_ECONOMY.md, not just foundations for it.
+
+**Decision record:**
+- This supersedes the "no new gameplay systems" scope line for construction-
+  loop work specifically (that line existed to prevent unauthorized drift;
+  this is the owner directing the drift). Chapter 1's soap-shop loop stays
+  intact and playable — construction arrives as an additional activity in
+  the same town, not a rewrite.
+- **First slice = the §9 prototype goal:** one contract type. Offer arrives
+  (same decision-modal pattern as credit/bulk) → accepting pays materials
+  cost upfront → after N build days the finished house is appended to
+  GameState.built_structures (the §7 registry) → payout + reputation on
+  completion → the house physically appears in the 3D town and persists in
+  every save thereafter. Margin is legible in the offer text (materials X,
+  pays Z) per §3.
+- **Deliberately simplified for the MVP** (per §3 "don't over-simulate"):
+  no material-shop entities yet (materials cost is a single legible number),
+  no govt/private split yet, no failure/deadline on an accepted contract
+  yet, fixed plot list in SimConfig (offers stop when plots run out).
+  Each is named future work, not forgotten.
+- All engine rules still hold: tunables in SimConfig only, randomness via
+  GameState.rng, all mutation inside run_day() before any signal, missions
+  still driven only by the five events (contracts do NOT add mission
+  triggers), save-format additive with safe defaults.
+
+## 2026-07-05 — Town-planning as curriculum (DIRECTION from Vikash)
+
+**Trigger:** Vikash: the game is "a learning and fun platform of real
+business," and town planning is itself a course — players should learn it
+through play. He listed the town vocabulary: houses, shops, warehouses,
+factories, agriculture, roads, bridges, offices, drainage systems, water
+channels, etc.
+
+**Decision record:**
+- Captured as DESIGN_CONSTRUCTION_ECONOMY.md §12: the structure vocabulary
+  IS the syllabus; each element maps to the economic lesson it teaches.
+- **Implemented now (fits the proven contract loop):** contracts commission
+  four structure types — House, Shop, Warehouse, Office — each with its own
+  size, cost range, procedural look (warehouse: flat roof + loading door;
+  office: taller with a window grid), a name label over the finished
+  building, and a one-line "teach" sentence in the diary on completion
+  ("Warehouses let goods wait for the right price..."). Learning by
+  building, not by lecture.
+- **Deliberately deferred to the township-planner phase (§5):** roads,
+  bridges, drainage, water channels, agriculture — terrain-shaped
+  infrastructure only teaches when the planner's measurable scoring
+  (access, walkability, drainage coverage) exists. Scattering them into
+  the contract loop early would make them scenery, not lessons.

@@ -8,6 +8,11 @@ var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 # and scripts/business/. Chapter 1 only ever plays "soap_shop" today.)
 var active_business_id: String
 
+# Built world — the town as serializable data (keystone law: what is built
+# stays; DESIGN_CONSTRUCTION_ECONOMY.md §7). Seeded from DefaultTown.layout()
+# on reset, persisted in saves, rebuilt by Town3D. JSON-safe entries only.
+var built_structures: Array = []
+
 var cash: float
 var reputation: float
 var day: int
@@ -33,6 +38,11 @@ var pending_credit_request: Dictionary = {}  # awaiting player choice ({} = none
 var pending_bulk_offer: Dictionary = {}      # awaiting player choice ({} = none)
 var customer_relationships: Dictionary = {}  # name -> {paid: int, defaulted: int, refused: int}
 
+# Contractor loop (DESIGN_CONSTRUCTION_ECONOMY.md §3/§9)
+var pending_contract_offer: Dictionary = {}  # awaiting player choice ({} = none)
+var active_contract: Dictionary = {}         # {name, materials_cost, payout, complete_day, structure}
+var contracts_completed: int = 0             # also indexes the next CONTRACT_PLOTS entry
+
 # Lender
 var lender_debt: float           # 0 = no debt; repay due at next month-end
 var lender_offer_pending: bool
@@ -51,6 +61,7 @@ func reset(seed_value: int = -1) -> void:
 	# Always the default for now — there is no player-facing business-select
 	# screen yet, so every reset starts Chapter 1's one playable business.
 	active_business_id = BusinessRegistry.DEFAULT_ID
+	built_structures = DefaultTown.layout()
 	cash = SimConfig.STARTING_CASH
 	reputation = SimConfig.STARTING_REPUTATION
 	day = 0
@@ -71,6 +82,9 @@ func reset(seed_value: int = -1) -> void:
 	pending_credit_request = {}
 	pending_bulk_offer = {}
 	customer_relationships = {}
+	pending_contract_offer = {}
+	active_contract = {}
+	contracts_completed = 0
 	lender_debt = 0.0
 	lender_offer_pending = false
 
@@ -99,6 +113,7 @@ func to_dict() -> Dictionary:
 	return {
 		"version": 1,
 		"active_business_id": active_business_id,
+		"built_structures": built_structures,
 		"rng_seed": rng.seed,
 		"rng_state": rng.state,
 		"cash": cash, "reputation": reputation, "day": day,
@@ -112,6 +127,9 @@ func to_dict() -> Dictionary:
 		"pending_credit_request": pending_credit_request,
 		"pending_bulk_offer": pending_bulk_offer,
 		"customer_relationships": customer_relationships,
+		"pending_contract_offer": pending_contract_offer,
+		"active_contract": active_contract,
+		"contracts_completed": contracts_completed,
 		"lender_debt": lender_debt, "lender_offer_pending": lender_offer_pending,
 	}
 
@@ -119,6 +137,9 @@ func to_dict() -> Dictionary:
 ## Restore from a snapshot produced by to_dict().
 func from_dict(d: Dictionary) -> void:
 	active_business_id = String(d.get("active_business_id", BusinessRegistry.DEFAULT_ID))
+	# Saves predating the built-world registry get the default town — identical
+	# to what their Town3D was hardcoding when they were written.
+	built_structures = d.get("built_structures", DefaultTown.layout())
 	rng.seed = int(d.get("rng_seed", 0))
 	rng.state = int(d.get("rng_state", 0))
 	cash = float(d.get("cash", SimConfig.STARTING_CASH))
@@ -141,5 +162,8 @@ func from_dict(d: Dictionary) -> void:
 	pending_credit_request = d.get("pending_credit_request", {})
 	pending_bulk_offer = d.get("pending_bulk_offer", {})
 	customer_relationships = d.get("customer_relationships", {})
+	pending_contract_offer = d.get("pending_contract_offer", {})
+	active_contract = d.get("active_contract", {})
+	contracts_completed = int(d.get("contracts_completed", 0))
 	lender_debt = float(d.get("lender_debt", 0.0))
 	lender_offer_pending = bool(d.get("lender_offer_pending", false))

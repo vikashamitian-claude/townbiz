@@ -106,6 +106,7 @@ func _ready() -> void:
 	Events.credit_requested.connect(_on_credit_requested)
 	Events.bulk_offered.connect(_on_bulk_offered)
 	Events.lender_offered.connect(_on_lender_offered)
+	Events.contract_offered.connect(_on_contract_offered)
 
 	price_slider.min_value = SimConfig.PRICE_MIN
 	price_slider.max_value = SimConfig.PRICE_MAX
@@ -418,6 +419,13 @@ func _advance_day() -> void:
 
 	_diary_day(r)
 	_note_regulars_trend(int(r.regulars))
+	var day_contract: Dictionary = r.get("contract", {})
+	if not day_contract.is_empty():
+		_diary("%s's %s is finished - paid Rs %d. It stands as long as the town does." % [
+			String(day_contract.name), String(day_contract.get("label", "house")).to_lower(),
+			int(day_contract.payout)])
+		if String(day_contract.get("teach", "")) != "":
+			_diary(String(day_contract.teach))
 
 	if drep > 0:
 		_float("Reputation +%d" % drep, REP_COL, rep_value.global_position + Vector2(0, 30))
@@ -651,6 +659,10 @@ func _on_lender_offered(offer: Dictionary) -> void:
 	_queue_decision("lender", offer)
 
 
+func _on_contract_offered(offer: Dictionary) -> void:
+	_queue_decision("contract", offer)
+
+
 func _queue_decision(kind: String, data: Dictionary) -> void:
 	decision_queue.append({"kind": kind, "data": data})
 	if not decision_active:
@@ -690,6 +702,14 @@ func _show_next_decision() -> void:
 				int(data.principal), int(data.repay)]
 			decision_yes.text = "Accept loan"
 			decision_no.text = "Decline"
+		"contract":
+			decision_title.text = "Build contract: %s" % String(data.get("label", "House"))
+			decision_body.text = "%s wants a %s built. Materials Rs %d now; pays Rs %d in %d days. Profit: Rs %d." % [
+				String(data.name), String(data.get("label", "house")).to_lower(),
+				int(data.materials_cost), int(data.payout),
+				int(data.build_days), int(data.payout) - int(data.materials_cost)]
+			decision_yes.text = "Take the contract"
+			decision_no.text = "Pass"
 	decision_overlay.visible = true
 	_refresh_hud()
 
@@ -708,6 +728,12 @@ func _on_decision_yes_pressed() -> void:
 		"lender":
 			Sim.accept_lender()
 			_diary("Took a Rs %d loan from the Mahajan." % int(data.principal))
+		"contract":
+			if Sim.accept_contract():
+				_diary("Took %s's build contract - materials cost Rs %d." % [
+					String(data.name), int(data.materials_cost)])
+			else:
+				_diary("Couldn't take the contract - not enough cash for materials.")
 	_show_next_decision()
 
 
@@ -723,6 +749,9 @@ func _on_decision_no_pressed() -> void:
 		"lender":
 			Sim.decline_lender()
 			_diary("Declined the Mahajan's loan.")
+		"contract":
+			Sim.decline_contract()
+			_diary("Passed on %s's build contract." % String(data.name))
 	_show_next_decision()
 
 

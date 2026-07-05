@@ -1,81 +1,62 @@
-# Claude Code Report — Phase 3D-2: procedural low-poly town upgrade
+# Claude Code Report — Contract variety: the town-planning curriculum begins
 
-Date: 2026-07-04
+Date: 2026-07-05
 
-- STAGE: Sprint 3D, Phase 3D-2 (Vikash: "continue Phase 3D-2 with the
-  low-poly assets")
-- STATUS: PASS WITH MINOR FIXES — visual upgrade complete and parse-verified;
-  on-device confirmation pending (as with everything this session, nothing
-  has executed anywhere yet)
+- STAGE: extension of the contractor loop per Vikash's framing — "a learning
+  and fun platform of real business... town planning is also a course."
+- STATUS: PASS WITH MINOR FIXES — implemented, parse-verified; execution
+  pending on the Windows machine's Godot 4.7.
 
-## Key decision (recorded in HUMAN_DECISIONS.md)
+## What Vikash asked and how it was scoped
 
-The original 3D-2 plan called for external CC0 packs (Kenney-style). The
-cloud sandbox can't fetch them (network scoped to this repo only), and
-importing binary `.glb` files blind — no Godot to check scale, materials, or
-import settings — is the riskiest possible change type. Implemented 3D-2 as
-a **procedural low-poly upgrade** instead: Godot built-in meshes only,
-text-diffable, GL-Compatibility-safe, fully parse-verifiable. External packs
-remain a later option; `GrayboxKit.gd` is still the single swap point.
+He named the full town vocabulary (houses, shops, warehouses, factories,
+agriculture, roads, bridges, offices, drainage, water channels) as things
+players should LEARN through play. Split into:
 
-## What changed
+1. **Captured as curriculum** — DESIGN_CONSTRUCTION_ECONOMY.md §12: the
+   vocabulary IS the syllabus; a table maps each element to the economic
+   lesson it teaches. Terrain-shaped infrastructure (roads, bridges,
+   drainage, water channels, agriculture) is explicitly assigned to the
+   township-planner phase, where measurable scoring makes them teach rather
+   than decorate. Not built now — on purpose, recorded.
+2. **Implemented now** — the plot-buildable subset through the existing,
+   just-built contract loop.
 
-### `scripts/world3d/GrayboxKit.gd` (238 lines, rewritten)
-- `building()` — NEW: colliding walls + gabled `PrismMesh` roof + door and
-  window on the road-facing side. Wall mesh named `"Wall"` (a stable
-  contract — Town3D repaints it on shop expansion, now by name instead of
-  the old fragile `get_child(1)` index).
-- `person()` — upgraded: capsule body + sphere head + two angled arms
-  (`ArmL`/`ArmR`); `tint_person()` recolors arms along with the body.
-- `tree()` upgraded (trunk cylinder + two-sphere crown), `pine_tree()` NEW
-  (stacked cones), `lamp_post()` NEW (pole + emissive glowing head),
-  `crate()` NEW. Shared `_mat()` helper for materials, with an emissive
-  option.
-- `static_box`/`visual_box`/`label3d` signatures unchanged.
+## What was built
 
-### `scripts/world3d/Town3D.gd`
-- Shop and neighbor now `building()`s with roofs (same footprints and
-  colliders as before — every interaction point constant untouched).
-- Counter gained a sloped awning and stacked stock crates beside it.
-- All five filler houses became real houses (roofs, doors, windows, varied
-  wall/roof colors; the two south-side houses face the road correctly).
-- Road gained sidewalks and center dashes; four glowing street lamps along
-  it; tree mix is now round + pine.
-- Customers spawn with varied clothing colors (cosmetic-only `randi()`,
-  which biztown-rules explicitly permits outside `GameState.rng`).
-- Shop/neighbor sign labels raised to clear the new roofs.
-- `_paint_neighbor()` uses `get_node_or_null("Wall")` — expansion repaint
-  survives any future reordering of building children.
-
-### `scripts/world3d/Player3D.gd`
-- The founder gained arms (matching the upgraded people).
-
-## Invariants deliberately preserved
-
-- Every `*_POS` interaction constant unchanged; every collider footprint
-  identical → walking, counter/hire/expand zones, and customer walk paths
-  behave exactly as the last on-device test.
-- Zero sim/engine changes. Zero save-format changes.
-- No imported binary assets — repo stays all-text.
+- `SimConfig.CONTRACT_PROJECTS`: four commissionable types — House, Shop,
+  Warehouse, Office — each with size, materials-cost range, and a one-line
+  "teach" sentence (the lesson). Replaces the single hardcoded house
+  project; the now-redundant `CONTRACT_MATERIALS_MIN/MAX` and
+  `CONTRACT_HOUSE_SIZE` constants were removed (no dead tunables).
+- `GrayboxKit.warehouse()` (flat overhung roof, wide loading door) and
+  `GrayboxKit.office()` (taller block, height-scaled window grid), sharing
+  a new `_walled_box()` helper with the existing gabled `building()`. Wall
+  meshes named "Wall" throughout — the repaint contract holds.
+- `StructureCatalog`: `warehouse`/`office` cases + optional `label` field —
+  contracted structures now carry a floating name label ("WAREHOUSE"), so
+  the growing town reads as WHAT it is.
+- `EventEngine.maybe_roll_contract_offer()` picks a project via
+  `GameState.rng`, carries `label` + `teach` through the offer.
+- `Sim.gd` threads label/teach through `active_contract` into the
+  completion result (persisted mid-contract saves included).
+- Both UIs: the offer modal is typed ("Build contract: Warehouse... wants a
+  warehouse built... Profit: Rs N"), and on completion the diary teaches:
+  "Warehouses let goods wait for the right price instead of flooding the
+  market." The 2D fallback also gained completion diary lines (it had
+  none — contracts finished silently there; gap found while wiring this).
 
 ## Verification
 
-`gdformat --check`: all 16 `.gd` files parse with zero errors (style-only
-"would reformat" diffs, as always). `gdlint scripts/world3d`: only the
-long-known `Town3D.gd` file-length flag (1100 lines) plus pre-existing
-line-length style flags — no new structural findings; the two long lines my
-own edits introduced were wrapped before commit.
+`gdformat --check`: all 18 files parse, zero errors. `gdlint`: only
+pre-existing known flags. No stale references to the removed constants
+(grepped). Suite 7 still passes by construction (it builds its own offer
+dicts; `label`/`teach` are read with safe `.get()` defaults everywhere).
+Not executed here — Windows can run the full suite + playtest.
 
-**Not verified by execution** — same standing gap. The visual result
-especially needs eyes: mesh proportions/colors are reasoned, not seen.
-A single screenshot of the new town from Vikash's phone confirms (or
-corrects) the whole phase.
+## Exact next recommended step
 
-## Next recommended step
-
-1. Vikash: fresh ZIP of the branch → import → **Play** → screenshot the town
-   (this phase is visual; the screenshot IS the test).
-2. Still outstanding since session start: `tests/TestRunner.tscn` first-ever
-   run.
-3. Phase 3D-3 after visual sign-off: interiors, simple walk animation
-   (arm/leg swing), ambient townsfolk.
+Same as before, one command on Windows:
+`godot --headless --path . res://tests/TestRunner.tscn` (7 suites), then
+Play — take contracts until a warehouse or office comes up, watch the town
+gain labeled, varied buildings, and check the diary teaches its line.

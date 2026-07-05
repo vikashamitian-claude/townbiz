@@ -104,6 +104,42 @@ const EVENT_WEIGHTS: Dictionary = {
 	"wedding_season": 6,
 }
 
+# --- Build contracts (contractor loop MVP — DESIGN_CONSTRUCTION_ECONOMY.md §3/§9) ---
+const CONTRACT_OFFER_CHANCE: float = 0.10       # per day, when no offer/contract is active
+const CONTRACT_MARGIN_MIN: float = 0.35         # payout = materials * (1 + margin)
+const CONTRACT_MARGIN_MAX: float = 0.60
+const CONTRACT_BUILD_DAYS_MIN: int = 3
+const CONTRACT_BUILD_DAYS_MAX: int = 5
+const CONTRACT_REP_REWARD: float = 2.0          # the town sees you build; word spreads
+# Empty plots along the street where contracted structures rise, in build order.
+# Offers stop when every plot is built — the street is full (Chapter 2 grows the map).
+const CONTRACT_PLOTS: Array = [
+	[-4.5, 9.5], [6.0, 10.0], [18.0, 8.5], [-19.0, -6.5], [4.0, -9.5], [-4.0, -10.0],
+]
+const CONTRACT_WALL_COLORS: Array = [
+	[0.80, 0.68, 0.50], [0.62, 0.68, 0.78], [0.75, 0.58, 0.52], [0.60, 0.70, 0.58],
+]
+const CONTRACT_ROOF_COLORS: Array = [
+	[0.55, 0.36, 0.26], [0.40, 0.44, 0.55], [0.52, 0.32, 0.30], [0.36, 0.48, 0.38],
+]
+# What can be commissioned. Each completed structure's "teach" line is the
+# town-planning curriculum in one sentence (design doc §12): the player
+# learns what each building does for a real economy by building it.
+const CONTRACT_PROJECTS: Array = [
+	{"label": "House", "structure_type": "building", "size": [3.6, 2.5, 3.0],
+		"materials": [1500.0, 2500.0],
+		"teach": "Houses bring people - and people bring demand for every other business."},
+	{"label": "Shop", "structure_type": "building", "size": [4.2, 2.6, 3.2],
+		"materials": [2000.0, 3200.0],
+		"teach": "Shops turn footfall into trade. They live or die by the houses around them."},
+	{"label": "Warehouse", "structure_type": "warehouse", "size": [5.5, 3.0, 4.5],
+		"materials": [2800.0, 4200.0],
+		"teach": "Warehouses let goods wait for the right price instead of flooding the market."},
+	{"label": "Office", "structure_type": "office", "size": [4.0, 5.0, 3.5],
+		"materials": [3200.0, 4800.0],
+		"teach": "Offices bring salaried work - steady money that steadies every shop's till."},
+]
+
 # --- Event effect parameters ---
 const FESTIVAL_DEMAND_MULT: float = 1.6
 const RAIN_DEMAND_MULT: float = 0.6

@@ -74,6 +74,7 @@ var current_decision: Dictionary = {}
 # 3D nodes
 var player: CharacterBody3D
 var cam: Camera3D
+var structures_root: Node3D   # everything built from GameState.built_structures
 var shop_body: Node3D
 var neighbor_body: Node3D
 var neighbor_sign: Label3D
@@ -120,6 +121,7 @@ func _ready() -> void:
 	Events.credit_requested.connect(func(r: Dictionary) -> void: _queue_decision("credit", r))
 	Events.bulk_offered.connect(func(o: Dictionary) -> void: _queue_decision("bulk", o))
 	Events.lender_offered.connect(func(o: Dictionary) -> void: _queue_decision("lender", o))
+	Events.contract_offered.connect(func(o: Dictionary) -> void: _queue_decision("contract", o))
 
 	if SaveManager.has_save():
 		_show_boot_choice()
@@ -187,11 +189,14 @@ func _build_world() -> void:
 		GrayboxKit.visual_box(
 			self, Vector3(dash_x, 0.045, 1.5), Vector3(1.2, 0.02, 0.16), Color(0.85, 0.85, 0.80))
 
-	# The player's shop (same footprint/collider as always; Town3D draws its
-	# own storefront, so the building's generic door/window are disabled)
-	shop_body = GrayboxKit.building(
-		self, Vector3(0, 1.5, -6), Vector3(6, 3, 4),
-		Color(0.78, 0.55, 0.38), Color(0.62, 0.30, 0.24), 1.0, false)
+	# All registry-driven structures (shop, neighbor, houses, trees, lamps)
+	# live under one root so a loaded save can rebuild the physical town from
+	# its own data (keystone law — DESIGN_CONSTRUCTION_ECONOMY.md §7).
+	structures_root = Node3D.new()
+	add_child(structures_root)
+	_rebuild_structures()
+
+	# --- Storefront dressing (tied to the shop's default spot, kept in code) ---
 	GrayboxKit.visual_box(  # door
 		self, Vector3(1.2, 1.0, -3.95), Vector3(1.1, 2.0, 0.12), Color(0.30, 0.22, 0.16))
 	GrayboxKit.visual_box(  # window
@@ -205,33 +210,8 @@ func _build_world() -> void:
 	GrayboxKit.crate(self, Vector3(-2.1, 0, -3.0), 0.6, Color(0.62, 0.47, 0.30))
 	GrayboxKit.crate(self, Vector3(-2.1, 0.6, -3.0), 0.45, Color(0.68, 0.52, 0.34))
 	GrayboxKit.crate(self, Vector3(-2.7, 0, -2.7), 0.5, Color(0.58, 0.44, 0.28))
-
-	# The shop next door (expansion target; keeps its "Wall" mesh repaintable)
-	neighbor_body = GrayboxKit.building(
-		self, Vector3(8, 1.3, -6), Vector3(5, 2.6, 4),
-		Color(0.52, 0.53, 0.58), Color(0.38, 0.40, 0.45), 1.0, false)
 	neighbor_sign = GrayboxKit.label3d(
 		self, "FOR RENT", Vector3(8, 3.6, -4), 72, Color(0.85, 0.85, 0.85))
-
-	# Filler houses (set dressing; same footprints/colliders as before)
-	GrayboxKit.building(self, Vector3(-9, 1.4, -7), Vector3(4, 2.8, 3.5),
-		Color(0.62, 0.50, 0.60), Color(0.45, 0.30, 0.35), 1.0)
-	GrayboxKit.building(self, Vector3(-15, 1.2, -5), Vector3(3.5, 2.4, 3),
-		Color(0.50, 0.60, 0.68), Color(0.32, 0.38, 0.48), 1.0)
-	GrayboxKit.building(self, Vector3(14, 1.3, -6.5), Vector3(4, 2.6, 3.5),
-		Color(0.68, 0.60, 0.45), Color(0.50, 0.38, 0.26), 1.0)
-	GrayboxKit.building(self, Vector3(-12, 1.2, 6.5), Vector3(4, 2.4, 3),
-		Color(0.58, 0.55, 0.50), Color(0.40, 0.34, 0.30), -1.0)
-	GrayboxKit.building(self, Vector3(11, 1.3, 7), Vector3(4.5, 2.6, 3.2),
-		Color(0.52, 0.62, 0.55), Color(0.34, 0.44, 0.38), -1.0)
-
-	# Trees (two kinds) and street lamps along the road
-	for p in [Vector3(-5, 0, 5), Vector3(5, 0, 6), Vector3(16, 0, 2.8)]:
-		GrayboxKit.tree(self, p)
-	for p in [Vector3(-17, 0, 3.2), Vector3(-6.5, 0, -3.5), Vector3(17.5, 0, -4)]:
-		GrayboxKit.pine_tree(self, p)
-	for lamp_x in [-13.0, -4.0, 4.5, 13.0]:
-		GrayboxKit.lamp_post(self, Vector3(lamp_x, 0, -0.7))
 
 	# Ravi (idle NPC; shown when relevant)
 	ravi_npc = GrayboxKit.person(Color(0.35, 0.48, 0.78))
@@ -246,6 +226,26 @@ func _build_world() -> void:
 	player = PlayerScene.new()
 	player.position = Vector3(0, 0.1, 4)
 	add_child(player)
+
+
+## Rebuild every registry-driven structure from GameState.built_structures.
+## Called at scene start, after Continue loads a save (the loaded registry is
+## the truth, not what _ready() seeded), and after Reset. Re-applies the
+## expansion repaint since the neighbor mesh is recreated fresh.
+func _rebuild_structures() -> void:
+	for c in structures_root.get_children():
+		c.queue_free()
+	shop_body = null
+	neighbor_body = null
+	for s in GameState.built_structures:
+		var node := StructureCatalog.build(structures_root, s)
+		match String(s.get("id", "")):
+			"shop":
+				shop_body = node
+			"neighbor":
+				neighbor_body = node
+	if GameState.has_expanded_shop:
+		_apply_expansion_visual()
 
 
 # ===========================================================================
@@ -580,8 +580,9 @@ func _show_boot_choice() -> void:
 			# instead of leaving default state with no mission ever shown.
 			_begin_new_game()
 			return
-		if GameState.has_expanded_shop:
-			_apply_expansion_visual()
+		# The loaded save's registry is the truth for what stands in the town
+		# (also re-applies the expansion repaint if the save had expanded).
+		_rebuild_structures()
 		price_slider.value = GameState.current_price
 		cost_today = Sim.get_current_unit_cost()
 		cost_yesterday = cost_today
@@ -612,6 +613,18 @@ func _advance_day() -> void:
 	_log("Day %d: %d bought soap (Rs %d)%s" % [r.day, r.served, int(r.revenue),
 		(", %d walked away" % r.lost) if int(r.lost) > 0 else ""])
 	_note_regulars_trend(int(r.regulars))
+
+	# A finished contract permanently grows the town — make the causality
+	# visible (DESIGN_CONSTRUCTION_ECONOMY.md §9: surface the chain).
+	var contract: Dictionary = r.get("contract", {})
+	if not contract.is_empty():
+		_rebuild_structures()
+		_log("%s's %s is finished - paid Rs %d. It stands as long as the town does." % [
+			String(contract.name), String(contract.get("label", "house")).to_lower(),
+			int(contract.payout)])
+		if String(contract.get("teach", "")) != "":
+			_log(String(contract.teach))
+		_float("The town grew!", GOOD, Vector2(360, 300))
 
 	var drep: int = int(round(GameState.reputation - rep_before))
 	if drep != 0:
@@ -728,7 +741,7 @@ func _apply_expansion_visual() -> void:
 
 ## Repaint the neighbor shop's sign and wall color (expanded vs FOR RENT).
 func _paint_neighbor(sign_text: String, sign_col: Color, wall_col: Color) -> void:
-	if neighbor_body == null:
+	if neighbor_body == null or neighbor_sign == null:
 		return
 	neighbor_sign.text = sign_text
 	neighbor_sign.modulate = sign_col
@@ -836,6 +849,14 @@ func _show_next_decision() -> void:
 				int(data.principal), int(data.repay)]
 			decision_yes.text = "Accept loan"
 			decision_no.text = "Decline"
+		"contract":
+			decision_title.text = "Build contract: %s" % String(data.get("label", "House"))
+			decision_body.text = "%s wants a %s built on the empty plot. Materials cost Rs %d now; pays Rs %d when finished (%d days). Profit: Rs %d." % [
+				String(data.name), String(data.get("label", "house")).to_lower(),
+				int(data.materials_cost), int(data.payout),
+				int(data.build_days), int(data.payout) - int(data.materials_cost)]
+			decision_yes.text = "Take the contract"
+			decision_no.text = "Pass"
 	decision_overlay.visible = true
 	_refresh_all()
 
@@ -854,6 +875,12 @@ func _on_decision_yes_pressed() -> void:
 		"lender":
 			Sim.accept_lender()
 			_log("Took a Rs %d loan from the Mahajan." % int(data.principal))
+		"contract":
+			if Sim.accept_contract():
+				_log("Took %s's build contract. Materials bought - Rs %d." % [
+					String(data.name), int(data.materials_cost)])
+			else:
+				_log("Couldn't take the contract - not enough cash for materials.")
 	_show_next_decision()
 
 
@@ -869,6 +896,9 @@ func _on_decision_no_pressed() -> void:
 		"lender":
 			Sim.decline_lender()
 			_log("Declined the Mahajan's loan.")
+		"contract":
+			Sim.decline_contract()
+			_log("Passed on %s's build contract." % String(data.name))
 	_show_next_decision()
 
 
@@ -1046,6 +1076,7 @@ func _on_reset_pressed() -> void:
 	SaveManager.delete_save()
 	GameState.reset()
 	Missions.start_chapter()
+	_rebuild_structures()   # fresh registry -> fresh (default) town
 	cost_today = Sim.get_current_unit_cost()
 	cost_yesterday = cost_today
 	price_slider.value = SimConfig.DEFAULT_PRICE
