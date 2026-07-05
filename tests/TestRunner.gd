@@ -20,6 +20,7 @@ func _ready() -> void:
 	_suite("CREDIT", _test_credit)
 	_suite("SAVE/LOAD", _test_save)
 	_suite("MISSION PLAYTHROUGH", _test_missions)
+	_suite("BUILD CONTRACTS", _test_contracts)
 	# Don't leave a test-state autosave behind for the real game to "Continue" into.
 	SaveManager.delete_save()
 	_out("\n==== %d checks, %d failures ====" % [checks, failures])
@@ -307,3 +308,63 @@ func _test_missions() -> void:
 	_assert(completed == ["opening_day", "restock", "long_queue", "month_end", "shop_next_door"],
 		"Chapter 1 completes in order (got %s)" % [completed])
 	_assert(done[0], "chapter_completed emitted (in %d days)" % GameState.day)
+
+
+# ------------------------------------------------------------------
+# 7. Build contracts: accept pays materials, completion adds a
+#    persistent structure + payout; decline and cash-gate paths.
+# ------------------------------------------------------------------
+func _test_contracts() -> void:
+	_fresh(555)
+	var structures_before: int = GameState.built_structures.size()
+	var test_structure: Dictionary = {
+		"type": "building", "pos": [-4.5, 1.25, 9.5], "size": [3.6, 2.5, 3.0],
+		"wall": [0.8, 0.68, 0.5], "roof": [0.55, 0.36, 0.26], "face": 1.0,
+	}
+	GameState.pending_contract_offer = {
+		"name": "Sharma-ji", "materials_cost": 2000.0, "payout": 3000.0,
+		"build_days": 3, "structure": test_structure,
+	}
+	var cash_before: float = GameState.cash
+	_assert(Sim.accept_contract(), "accept_contract succeeds with cash on hand")
+	_assert(is_equal_approx(GameState.cash, cash_before - 2000.0), "materials paid upfront")
+	_assert(not GameState.active_contract.is_empty(), "contract is active after accept")
+
+	var completion: Dictionary = {}
+	for i in range(4):
+		if not GameState.pending_credit_request.is_empty():
+			Sim.refuse_credit()
+		if not GameState.pending_bulk_offer.is_empty():
+			Sim.decline_bulk_offer()
+		if not GameState.pending_contract_offer.is_empty():
+			Sim.decline_contract()
+		var r: Dictionary = Sim.run_day()
+		var day_contract: Dictionary = r.get("contract", {})
+		if not day_contract.is_empty():
+			completion = day_contract
+			break
+	_assert(not completion.is_empty(), "contract completed within its build window")
+	_assert(GameState.built_structures.size() == structures_before + 1,
+		"finished house joined built_structures (persists in saves)")
+	_assert(GameState.contracts_completed == 1, "contracts_completed advanced")
+	_assert(GameState.active_contract.is_empty(), "no active contract after completion")
+	_assert(is_equal_approx(float(completion.get("payout", 0.0)), 3000.0),
+		"completion reported the payout")
+
+	# Decline path clears the offer without touching cash.
+	GameState.pending_contract_offer = {
+		"name": "Raju bhai", "materials_cost": 1500.0, "payout": 2200.0,
+		"build_days": 3, "structure": test_structure,
+	}
+	var cash_track: float = GameState.cash
+	_assert(Sim.decline_contract(), "decline_contract clears the offer")
+	_assert(GameState.pending_contract_offer.is_empty(), "offer gone after decline")
+	_assert(is_equal_approx(GameState.cash, cash_track), "decline costs nothing")
+
+	# Cash gate: can't take a contract you can't buy materials for.
+	GameState.pending_contract_offer = {
+		"name": "Meena didi", "materials_cost": 999999.0, "payout": 1500000.0,
+		"build_days": 3, "structure": test_structure,
+	}
+	_assert(not Sim.accept_contract(), "accept refused when cash < materials cost")
+	GameState.pending_contract_offer = {}

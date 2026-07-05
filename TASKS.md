@@ -85,7 +85,21 @@ Status: **Phase 3D-1 code complete — awaiting on-device verification**
    Zero behavior change today (the default registry IS the old hardcoded
    town), but anything appended to the registry now genuinely stays across
    sessions — the keystone law has a mechanism.
-4. [ ] **Phase 3D-3** — interiors, character animation, town life polish.
+4. [x] **Contractor loop MVP** (the §9 prototype goal, owner-approved
+   "develop the whole game in the new guideline"): build-contract offers
+   (`Events.maybe_roll_contract_offer` → decision modal in both UIs),
+   `Sim.accept_contract`/`decline_contract` (materials paid upfront, margin
+   legible in the offer), completion inside `run_day()` appends the finished
+   house to `built_structures` (permanent, saved), pays out, +reputation;
+   Town3D rebuilds and narrates the causality ("the town grew"). All
+   tunables in SimConfig (`CONTRACT_*`); TestRunner suite 7 covers
+   accept/complete/decline/cash-gate. Simplified per §3: no material shops,
+   no govt/private split, no failure states yet — named future work.
+5. [ ] **Phase 3D-3** — interiors, character animation, town life polish.
+6. [ ] **Next construction steps (not started):** material-shop entities
+   (buy cement/TMT from named shops at moving prices), govt vs private
+   contracts, contract deadlines/failure, demand-driven business emergence
+   (§6), township planner (§5).
 
 ## Sprint CE - Customer experience variety (owner-approved, HUMAN_DECISIONS.md)
 

@@ -152,3 +152,33 @@ default registry is exactly the previously-hardcoded town — but the
 keystone law now has a real mechanism: any structure appended to the
 registry persists across sessions. Contract work (placing NEW structures
 through gameplay) remains future work per §11's boundaries.
+
+## 2026-07-05 — "Develop the whole game in the new guideline" (APPROVED by Vikash)
+
+**Trigger:** After the built-world registry landed (PR #7 branch), Vikash
+said: "let's develop the whole game in the new guideline" — explicit owner
+authorization to start building the construction-first gameplay of
+DESIGN_CONSTRUCTION_ECONOMY.md, not just foundations for it.
+
+**Decision record:**
+- This supersedes the "no new gameplay systems" scope line for construction-
+  loop work specifically (that line existed to prevent unauthorized drift;
+  this is the owner directing the drift). Chapter 1's soap-shop loop stays
+  intact and playable — construction arrives as an additional activity in
+  the same town, not a rewrite.
+- **First slice = the §9 prototype goal:** one contract type. Offer arrives
+  (same decision-modal pattern as credit/bulk) → accepting pays materials
+  cost upfront → after N build days the finished house is appended to
+  GameState.built_structures (the §7 registry) → payout + reputation on
+  completion → the house physically appears in the 3D town and persists in
+  every save thereafter. Margin is legible in the offer text (materials X,
+  pays Z) per §3.
+- **Deliberately simplified for the MVP** (per §3 "don't over-simulate"):
+  no material-shop entities yet (materials cost is a single legible number),
+  no govt/private split yet, no failure/deadline on an accepted contract
+  yet, fixed plot list in SimConfig (offers stop when plots run out).
+  Each is named future work, not forgotten.
+- All engine rules still hold: tunables in SimConfig only, randomness via
+  GameState.rng, all mutation inside run_day() before any signal, missions
+  still driven only by the five events (contracts do NOT add mission
+  triggers), save-format additive with safe defaults.

@@ -151,6 +151,35 @@ func decline_bulk_offer() -> bool:
 	return true
 
 
+## --- Build contracts (contractor loop MVP; materials paid upfront, §3). ---
+
+func accept_contract() -> bool:
+	var offer: Dictionary = GameState.pending_contract_offer
+	if offer.is_empty() or GameState.cash < float(offer.materials_cost):
+		return false
+	GameState.cash -= float(offer.materials_cost)
+	GameState.active_contract = {
+		"name": offer.name,
+		"materials_cost": float(offer.materials_cost),
+		"payout": float(offer.payout),
+		"complete_day": GameState.day + int(offer.build_days),
+		"structure": offer.structure,
+	}
+	GameState.pending_contract_offer = {}
+	GameState.add_trait("risk", "builder")
+	changed.emit()
+	return true
+
+
+func decline_contract() -> bool:
+	if GameState.pending_contract_offer.is_empty():
+		return false
+	GameState.pending_contract_offer = {}
+	GameState.add_trait("risk", "careful")
+	changed.emit()
+	return true
+
+
 ## --- Lender (broke = harder path, never game-over). ---
 
 func accept_lender() -> bool:
@@ -188,8 +217,9 @@ func run_day() -> Dictionary:
 		GameState.current_unit_cost + GameState.rng.randf_range(-SimConfig.COST_DRIFT, SimConfig.COST_DRIFT),
 		SimConfig.COST_MIN, SimConfig.COST_MAX)
 
-	# ---- 3. Maybe a credit request arrives (player answers before/after; sim doesn't block) ----
+	# ---- 3. Maybe a credit request or build contract arrives (sim doesn't block) ----
 	Events.maybe_roll_credit_request()
+	Events.maybe_roll_contract_offer()
 
 	# ---- 4. Roll demand with noise, split into customer mix ----
 	var price: float = GameState.current_price
@@ -221,6 +251,9 @@ func run_day() -> Dictionary:
 
 	# ---- 7. Credit ledger due-day resolution ----
 	var credit_result: Dictionary = _process_credit_dues()
+
+	# ---- 7b. Build contract completion (house joins the permanent town) ----
+	var contract_result: Dictionary = _process_contract()
 
 	# ---- 8. Regulars grow on clean days, shrink when people are turned away ----
 	if lost == 0 and served > 0:
@@ -261,6 +294,7 @@ func run_day() -> Dictionary:
 		"inventory": GameState.inventory, "reputation": GameState.reputation,
 		"regulars": GameState.regular_count, "event": todays_event,
 		"bulk": bulk_result, "credit": credit_result,
+		"contract": contract_result,
 		"rent_paid": rent_paid,
 	}
 	if is_month_end:
@@ -310,6 +344,23 @@ func _process_bulk_commitments() -> Dictionary:
 				kept.append(c)
 	GameState.bulk_commitments = kept
 	return { "fulfilled": fulfilled, "failed": failed }
+
+
+## Complete the active build contract when its day arrives: the finished house
+## joins GameState.built_structures (the persistent town — keystone law), the
+## payout lands, and the town's regard for a builder grows. Same day-counter
+## timing pattern as _process_credit_dues (compare against GameState.day + 1,
+## because this runs before this call's day increment).
+func _process_contract() -> Dictionary:
+	var c: Dictionary = GameState.active_contract
+	if c.is_empty() or GameState.day + 1 < int(c.complete_day):
+		return {}
+	GameState.built_structures.append(c.structure)
+	GameState.cash += float(c.payout)
+	_apply_reputation_change(SimConfig.CONTRACT_REP_REWARD, true)
+	GameState.contracts_completed += 1
+	GameState.active_contract = {}
+	return { "name": c.name, "payout": float(c.payout) }
 
 
 func _process_credit_dues() -> Dictionary:

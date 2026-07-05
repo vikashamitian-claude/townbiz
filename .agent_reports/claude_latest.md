@@ -1,86 +1,83 @@
-# Claude Code Report — Built-world registry (the §7 persistence prerequisite)
+# Claude Code Report — Contractor loop MVP (the §9 causal loop, playable)
 
 Date: 2026-07-05
 
-- STAGE: implementing the one architectural prerequisite named in
-  `DESIGN_CONSTRUCTION_ECONOMY.md` §7 (which landed on main from Vikash's
-  Windows session): make the town DATA, not code, so the keystone law
-  ("what is built stays") has a mechanism.
-- STATUS: PASS WITH MINOR FIXES — implemented, parse-verified, zero behavior
-  change today; on-device confirmation pending as always.
+- STAGE: first gameplay slice of the construction-first vision, per Vikash's
+  "let's develop the whole game in the new guideline" (recorded in
+  HUMAN_DECISIONS.md as explicit owner authorization).
+- STATUS: PASS WITH MINOR FIXES — implemented end-to-end with a new test
+  suite; parse-verified; execution pending (Windows machine has Godot 4.7
+  and can run the whole thing headless now).
 
-## Context
+## What this is
 
-Vikash's Windows-desktop session captured the construction-first vision and
-verified the engine gap: SaveManager persisted only sim numbers, and Town3D
-regenerated the whole physical town from hardcoded code every launch —
-nothing built could ever persist. §7 named the fix (a serializable
-built-world registry mirroring the BusinessRegistry pattern) and called it
-the strategic priority BEFORE more content. This session implemented exactly
-that and nothing more.
+DESIGN_CONSTRUCTION_ECONOMY.md §9 defines the smallest thing worth building:
+*build one thing → watch one economic number move → the town visibly,
+permanently grows.* This implements exactly that loop on top of the
+built-world registry (same PR branch):
 
-## What was built
+1. A **build-contract offer** arrives (10%/day when none is active and empty
+   plots remain — same decision-modal pattern as credit/bulk/lender):
+   "<Name> wants a house built. Materials Rs X now; pays Rs Z in N days.
+   Profit: Rs Z−X." Margin legible per §3.
+2. **Accept** → materials cost leaves cash immediately (fails politely if
+   cash is short). **Decline** → nothing, trait recorded.
+3. N days later, inside `run_day()` (all mutation before signals, same
+   day+1 timing pattern as credit dues): the finished house is **appended to
+   `GameState.built_structures`** — the persistent registry — payout lands,
+   reputation +2.
+4. Town3D rebuilds: **a real house appears on a previously-empty plot and
+   stands in every save thereafter.** Diary narrates the causality: "X's
+   house is finished — paid Rs Z. It stands as long as the town does."
+   (§9: surface the chain.)
 
-- **`GameState.built_structures: Array`** — the town as JSON-safe data
-  (dicts with `type`, `pos [x,y,z]`, per-type fields; arrays not
-  Vector3/Color because saves round-trip through JSON). Seeded on every
-  reset from `DefaultTown.layout()`, persisted in `to_dict()`/`from_dict()`
-  (parity re-verified programmatically). Old saves without the field get the
-  default town — identical to what their game hardcoded when they were
-  written.
-- **`scripts/world3d/DefaultTown.gd`** — the previously-hardcoded town
-  layout (shop, neighbor, 5 houses, 6 trees, 4 lamps) as pure data. All
-  numeric literals deliberately floats, because JSON parsing floats all
-  numbers and the save test compares JSON-visible state.
-- **`scripts/world3d/StructureCatalog.gd`** — data → meshes bridge
-  (`building`/`tree`/`pine`/`lamp`/`crate` via GrayboxKit), with a loud
-  `push_warning` on unknown types (same discipline as EventEngine's
-  unmatched-event guard: a saved structure must never silently vanish).
-- **`Town3D`** — registry structures now live under one `structures_root`;
-  `_rebuild_structures()` clears and rebuilds from `GameState.built_structures`,
-  re-grabs the `shop`/`neighbor` refs by entry id, and re-applies the
-  expansion repaint. Called from scene start, **Continue** (the loaded
-  registry is the truth, not what `_ready()` seeded — this ordering matters
-  and was the subtle part), and **Reset**. Storefront dressing (door,
-  window, signs, counter, awning, crates) stays code-side, tied to the
-  shop's default spot.
-- **`tests/TestRunner.gd` `_test_save`** — comparison now normalizes both
-  sides through a JSON round-trip before comparing. This fixes a **latent
-  pre-existing test bug** my change would have made deterministic: JSON has
-  no int/float distinction, so ints inside nested containers (credit_ledger
-  qty/due_day, and now built_structures) legitimately come back as floats
-  after save/load; the old exact-string compare would have flagged that as
-  corruption. The test still checks full JSON-visible state equality —
-  which is precisely what the save preserves.
+Offers stop when all 6 configured plots are built — the street is full;
+growing the map is Chapter 2's problem.
 
-## What this makes possible (and what it doesn't)
+## Where everything lives (architecture unchanged in shape)
 
-Any structure appended to `GameState.built_structures` now persists across
-saves and rebuilds physically on load — the keystone law is mechanically
-true. What does NOT exist yet, on purpose (per §11's boundaries): any
-gameplay that places new structures (contracts, building UI), material
-shops, planning tools. Those are the next chapters, standing on this floor.
+- `SimConfig.gd`: all `CONTRACT_*` tunables (offer chance, materials range,
+  margin range, build days, rep reward, plot list, house size/colors).
+- `EventEngine.gd`: `maybe_roll_contract_offer()` — data + signal only,
+  all randomness through `GameState.rng`.
+- `Sim.gd`: `accept_contract()`/`decline_contract()` actions;
+  `_process_contract()` completion inside `run_day()` step 7b, before the
+  day increment and long before any signal fires.
+- `GameState.gd`: `pending_contract_offer` / `active_contract` /
+  `contracts_completed`, all persisted (parity re-verified). Structure
+  entries are JSON-safe (floats/arrays) like everything else in the
+  registry.
+- Both UIs (`Town3D.gd` + `Game.gd` fallback): "contract" decision kind
+  wired into the existing modal queue; Town3D also rebuilds structures and
+  celebrates on completion.
+- Missions untouched: contracts add NO mission-driving signals; the five
+  events remain the only mission triggers.
+- `tests/TestRunner.gd`: new suite 7 — accept pays materials, completion
+  adds the structure + reports payout + advances the counter, decline is
+  free, accept refused when cash < materials.
 
-## Known limitation (flagged, not hidden)
+## Deliberate MVP simplifications (named, per the design doc's own §3/§10)
 
-Storefront dressing positions assume the shop at its default spot. If a
-future save ever relocates the `shop` entry, the dressing won't follow —
-acceptable while nothing can move it; becomes real work when contracts
-arrive.
+No material-shop entities yet (materials cost is one legible number), no
+govt/private contract split, no deadline/failure on an accepted build, fixed
+plot list. Each is real future work listed in TASKS.md — not scope creep
+fodder for this slice.
 
 ## Verification
 
-`gdformat --check`: all 18 `.gd` files parse, zero errors (style-only
-diffs). `gdlint`: only the long-standing `Town3D.gd` file-length note.
-Save/load field parity re-checked programmatically. Save round-trip traced
-by hand against `_test_save` including the int/float JSON subtlety above.
-**Not executed** — same standing gap; note the Windows machine now HAS
-Godot 4.7 per §8, so both `tests/TestRunner.tscn` and a desktop playtest
-are now one double-click away there, no phone required.
+`gdformat --check`: all 18 `.gd` files parse, zero errors. `gdlint`: only
+pre-existing/known flags. Save-format parity re-checked programmatically.
+Timing of contract completion hand-traced against the credit-dues
+off-by-one lesson (uses the same `day + 1` comparison). **Not executed
+here** — but the Windows machine can now run
+`godot --headless --path . res://tests/TestRunner.tscn` (suite 7 included)
+and then Play: accept a contract, run ~4 days, watch a house appear, quit,
+Continue, confirm the house is still there. That last check is the keystone
+law working for the first time.
 
 ## Exact next recommended step
 
-On the Windows machine (which has Godot 4.7):
-`godot --headless --path . res://tests/TestRunner.tscn` — the suite's
-first-ever execution, now with the registry round-trip included. Then Play
-to eyeball the Phase 3D-2 town + confirm Continue rebuilds it correctly.
+Windows: run the headless suite, then the playtest above. After that, the
+natural next slices in order: contract deadlines/failure (stakes), material
+shops with moving prices (procurement decisions), govt vs private contracts
+(the strategic tension), then §6's demand-driven business emergence.

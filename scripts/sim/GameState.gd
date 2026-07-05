@@ -38,6 +38,11 @@ var pending_credit_request: Dictionary = {}  # awaiting player choice ({} = none
 var pending_bulk_offer: Dictionary = {}      # awaiting player choice ({} = none)
 var customer_relationships: Dictionary = {}  # name -> {paid: int, defaulted: int, refused: int}
 
+# Contractor loop (DESIGN_CONSTRUCTION_ECONOMY.md §3/§9)
+var pending_contract_offer: Dictionary = {}  # awaiting player choice ({} = none)
+var active_contract: Dictionary = {}         # {name, materials_cost, payout, complete_day, structure}
+var contracts_completed: int = 0             # also indexes the next CONTRACT_PLOTS entry
+
 # Lender
 var lender_debt: float           # 0 = no debt; repay due at next month-end
 var lender_offer_pending: bool
@@ -77,6 +82,9 @@ func reset(seed_value: int = -1) -> void:
 	pending_credit_request = {}
 	pending_bulk_offer = {}
 	customer_relationships = {}
+	pending_contract_offer = {}
+	active_contract = {}
+	contracts_completed = 0
 	lender_debt = 0.0
 	lender_offer_pending = false
 
@@ -119,6 +127,9 @@ func to_dict() -> Dictionary:
 		"pending_credit_request": pending_credit_request,
 		"pending_bulk_offer": pending_bulk_offer,
 		"customer_relationships": customer_relationships,
+		"pending_contract_offer": pending_contract_offer,
+		"active_contract": active_contract,
+		"contracts_completed": contracts_completed,
 		"lender_debt": lender_debt, "lender_offer_pending": lender_offer_pending,
 	}
 
@@ -151,5 +162,8 @@ func from_dict(d: Dictionary) -> void:
 	pending_credit_request = d.get("pending_credit_request", {})
 	pending_bulk_offer = d.get("pending_bulk_offer", {})
 	customer_relationships = d.get("customer_relationships", {})
+	pending_contract_offer = d.get("pending_contract_offer", {})
+	active_contract = d.get("active_contract", {})
+	contracts_completed = int(d.get("contracts_completed", 0))
 	lender_debt = float(d.get("lender_debt", 0.0))
 	lender_offer_pending = bool(d.get("lender_offer_pending", false))

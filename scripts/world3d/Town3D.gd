@@ -121,6 +121,7 @@ func _ready() -> void:
 	Events.credit_requested.connect(func(r: Dictionary) -> void: _queue_decision("credit", r))
 	Events.bulk_offered.connect(func(o: Dictionary) -> void: _queue_decision("bulk", o))
 	Events.lender_offered.connect(func(o: Dictionary) -> void: _queue_decision("lender", o))
+	Events.contract_offered.connect(func(o: Dictionary) -> void: _queue_decision("contract", o))
 
 	if SaveManager.has_save():
 		_show_boot_choice()
@@ -613,6 +614,15 @@ func _advance_day() -> void:
 		(", %d walked away" % r.lost) if int(r.lost) > 0 else ""])
 	_note_regulars_trend(int(r.regulars))
 
+	# A finished contract permanently grows the town — make the causality
+	# visible (DESIGN_CONSTRUCTION_ECONOMY.md §9: surface the chain).
+	var contract: Dictionary = r.get("contract", {})
+	if not contract.is_empty():
+		_rebuild_structures()
+		_log("%s's house is finished - paid Rs %d. It stands as long as the town does." % [
+			String(contract.name), int(contract.payout)])
+		_float("The town grew!", GOOD, Vector2(360, 300))
+
 	var drep: int = int(round(GameState.reputation - rep_before))
 	if drep != 0:
 		_float(("Reputation +%d" if drep > 0 else "Reputation %d") % drep,
@@ -836,6 +846,13 @@ func _show_next_decision() -> void:
 				int(data.principal), int(data.repay)]
 			decision_yes.text = "Accept loan"
 			decision_no.text = "Decline"
+		"contract":
+			decision_title.text = "Build contract"
+			decision_body.text = "%s wants a house built on the empty plot. Materials cost Rs %d now; pays Rs %d when finished (%d days). Profit: Rs %d." % [
+				String(data.name), int(data.materials_cost), int(data.payout),
+				int(data.build_days), int(data.payout) - int(data.materials_cost)]
+			decision_yes.text = "Take the contract"
+			decision_no.text = "Pass"
 	decision_overlay.visible = true
 	_refresh_all()
 
@@ -854,6 +871,12 @@ func _on_decision_yes_pressed() -> void:
 		"lender":
 			Sim.accept_lender()
 			_log("Took a Rs %d loan from the Mahajan." % int(data.principal))
+		"contract":
+			if Sim.accept_contract():
+				_log("Took %s's build contract. Materials bought - Rs %d." % [
+					String(data.name), int(data.materials_cost)])
+			else:
+				_log("Couldn't take the contract - not enough cash for materials.")
 	_show_next_decision()
 
 
@@ -869,6 +892,9 @@ func _on_decision_no_pressed() -> void:
 		"lender":
 			Sim.decline_lender()
 			_log("Declined the Mahajan's loan.")
+		"contract":
+			Sim.decline_contract()
+			_log("Passed on %s's build contract." % String(data.name))
 	_show_next_decision()
 
 
